@@ -1,9 +1,9 @@
 -- Requires an environment that supports game:HttpGet and loadstring.
 -- This is a visual demo of the original menu layout. All callbacks are inert
 -- examples; the library does not implement the source script's game behavior.
-local BacktrackUI = loadstring(game:HttpGet(
-	"https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua?v=1.5.4"
-))()
+local libraryUrl = "https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua"
+local libraryCacheBuster = tostring(math.floor(os.clock() * 1000000))
+local BacktrackUI = loadstring(game:HttpGet(libraryUrl .. "?t=" .. libraryCacheBuster))()
 
 -- Executors with file APIs can load the original pixel icons and glow directly
 -- from this public repo. Other environments keep the built-in text fallback.

@@ -4,6 +4,16 @@ A standalone Luau UI library based on the menu in the [provided script](https://
 
 The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))` and, when executor file APIs are available, downloads the original PNG icons, glow, and Tahoma font into a local asset cache. It registers Tahoma as a `FontFace`, matching the source menu; other environments fall back to `Enum.Font.Legacy`. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. A custom `FontFace` can be supplied as `theme.fontFace`.
 
+## Executor loader
+
+Use this same command each time. Its runtime cache-buster fetches the latest example and library files from `main`:
+
+```lua
+local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/example.client.lua"
+local cacheBuster = tostring(math.floor(os.clock() * 1000000))
+loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
+```
+
 ## Quick start
 
 In Roblox Studio, place `backtrack_ui.lua` in a `ModuleScript`, then require it from a `LocalScript`:
