@@ -1,6 +1,8 @@
 # Backtrack UI
 
-A standalone Luau UI library based on the reusable menu patterns in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The implementation is self-contained: it builds its own Roblox `ScreenGui`, uses built-in fonts and shapes, and does not download assets or include the source script's game behavior.
+A standalone Luau UI library based on the reusable menu patterns in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The default window now follows the source layout: 604×631, square nested outlines, a rose inner frame, a dark blue-grey vertical gradient, compact tabs, and a 157×39 dock. Optional companion panels can be placed around it with `CreatePanel`.
+
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. Roblox does not expose the source's downloaded Tahoma font as a built-in font, so the library uses the built-in `Enum.Font.Legacy` face as a compact fallback. The source PNG icons and glow image are included in [`assets/roblox`](assets/roblox); upload them to Roblox and pass the returned asset IDs in `options.images` if you want the original image treatment.
 
 ## Quick start
 
@@ -12,6 +14,11 @@ local BacktrackUI = require(script.Parent.backtrack_ui)
 local menu = BacktrackUI.new({
     title = "Example Menu",
     toggleKey = Enum.KeyCode.RightShift,
+    images = {
+        -- After uploading the PNG files, add entries such as:
+        -- main = "rbxassetid://YOUR_MAIN_ICON_ID",
+        -- glow4 = "rbxassetid://YOUR_GLOW_IMAGE_ID",
+    },
     theme = {
         accent = Color3.fromRGB(255, 98, 127),
     },
@@ -63,8 +70,8 @@ When no `parent` is supplied, `BacktrackUI.new` parents the menu to the local pl
 - Tabs, flexible columns, sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
-- Detached utility panels, draggable watermark, and notifications.
-- Optional editable SVG icons are included in [`assets/icons`](assets/icons/). They are decorative companion assets and are not required by the Lua library.
+- Source-sized detached utility panels, a draggable 157×39 navigation dock, watermark, and notifications.
+- Optional SVG icons are included in [`assets/icons`](assets/icons/). The original PNG icons and glow image are in [`assets/roblox`](assets/roblox). Roblox `ImageLabel` cannot load local PNG files directly; upload them to Roblox, then pass their `rbxassetid://...` values in `options.images`.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
@@ -82,4 +89,4 @@ section:toggle({ name = "Enabled", flag = "enabled" })
 
 The library intentionally leaves file/config storage, application state, and every control callback to the host script.
 
-See [`assets/README.md`](assets/README.md) for the included icon pack and notes about using the upstream artwork.
+See [`assets/README.md`](assets/README.md) for the icon pack, source PNGs, and notes about uploading image assets to Roblox.

@@ -9,18 +9,27 @@
 local BacktrackUI = {}
 BacktrackUI.__index = BacktrackUI
 
-BacktrackUI.Version = "1.0.0"
+BacktrackUI.Version = "1.1.0"
 BacktrackUI.Theme = {
-	outline = Color3.fromRGB(8, 8, 10),
-	background = Color3.fromRGB(16, 16, 19),
-	surface = Color3.fromRGB(24, 24, 28),
-	surfaceHover = Color3.fromRGB(34, 34, 39),
-	border = Color3.fromRGB(45, 45, 51),
-	text = Color3.fromRGB(228, 228, 232),
-	muted = Color3.fromRGB(145, 145, 153),
+	outline = Color3.fromRGB(10, 10, 10),
+	inline = Color3.fromRGB(34, 34, 34),
+	background = Color3.fromRGB(16, 16, 16),
+	surface = Color3.fromRGB(16, 16, 16),
+	surfaceHover = Color3.fromRGB(28, 28, 37),
+	border = Color3.fromRGB(34, 34, 34),
+	text = Color3.fromRGB(224, 224, 224),
+	muted = Color3.fromRGB(160, 160, 166),
 	accent = Color3.fromRGB(255, 98, 127),
-	positive = Color3.fromRGB(112, 220, 138),
-	negative = Color3.fromRGB(246, 91, 102),
+	high_contrast = Color3.fromRGB(13, 13, 13),
+	low_contrast = Color3.fromRGB(16, 16, 16),
+	text_outline = Color3.fromRGB(0, 0, 0),
+	contrastTop = Color3.fromRGB(41, 41, 55),
+	contrastBottom = Color3.fromRGB(35, 35, 47),
+	glow = Color3.fromRGB(255, 98, 127),
+	positive = Color3.fromRGB(122, 255, 117),
+	negative = Color3.fromRGB(255, 117, 129),
+	information = Color3.fromRGB(154, 135, 254),
+	warning = Color3.fromRGB(247, 215, 98),
 }
 
 local Players = game:GetService("Players")
@@ -48,7 +57,19 @@ local function create(className, properties, parent)
 end
 
 local function corner(parent, radius)
-	return create("UICorner", { CornerRadius = UDim.new(0, radius or 3) }, parent)
+	-- The reference UI uses hard corners throughout.
+	return nil
+end
+
+local function gradient(parent, topColor, bottomColor, rotation)
+	return create("UIGradient", {
+		Name = "ThemeGradient",
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, topColor),
+			ColorSequenceKeypoint.new(1, bottomColor),
+		}),
+		Rotation = rotation or 90,
+	}, parent)
 end
 
 local function stroke(parent, color, thickness, transparency)
@@ -76,9 +97,11 @@ local function label(parent, text, theme, options)
 		Size = options.size or UDim2.new(1, 0, 0, options.height or 20),
 		Position = options.position or UDim2.new(),
 		AnchorPoint = options.anchorPoint or Vector2.zero,
-		Font = options.font or Enum.Font.Gotham,
+		Font = options.font or Enum.Font.Legacy,
 		Text = tostring(text or ""),
 		TextColor3 = options.color or theme.text,
+		TextStrokeColor3 = theme.text_outline,
+		TextStrokeTransparency = 0.55,
 		TextSize = options.textSize or 12,
 		TextXAlignment = options.align or Enum.TextXAlignment.Left,
 		TextYAlignment = options.valign or Enum.TextYAlignment.Center,
@@ -103,14 +126,16 @@ local function button(parent, text, theme, options)
 		Size = options.size or UDim2.new(1, 0, 0, options.height or 24),
 		Position = options.position or UDim2.new(),
 		AnchorPoint = options.anchorPoint or Vector2.zero,
-		Font = options.font or Enum.Font.GothamMedium,
+		Font = options.font or Enum.Font.Legacy,
 		Text = tostring(text or ""),
 		TextColor3 = options.color or theme.text,
+		TextStrokeColor3 = theme.text_outline,
+		TextStrokeTransparency = 0.55,
 		TextSize = options.textSize or 11,
 		TextXAlignment = options.align or Enum.TextXAlignment.Center,
 		ZIndex = options.zIndex or 2,
 	}, parent)
-	corner(control, options.radius or 3)
+	corner(control, options.radius or 0)
 	if options.stroke ~= false then
 		stroke(control, options.border or theme.border, 1)
 	end
@@ -194,12 +219,14 @@ function BacktrackUI.new(options)
 
 	local self = setmetatable({
 		Theme = mergeTheme(options.theme),
+		Images = options.images or {},
 		_Connections = {},
 		_connections = {},
 		_controls = {},
 		_flags = {},
 		_values = {},
 		_tabs = {},
+		_panels = {},
 		_keybinds = {},
 		_connectionsByName = {},
 		_destroyed = false,
@@ -216,8 +243,8 @@ function BacktrackUI.new(options)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, parent)
 
-	local width = options.width or 750
-	local height = options.height or 782
+	local width = options.width or 604
+	local height = options.height or 631
 	local initialSize = options.size
 	if typeof(initialSize) == "UDim2" then
 		width = initialSize.X.Offset
@@ -226,45 +253,82 @@ function BacktrackUI.new(options)
 
 	self.Outer = create("Frame", {
 		Name = "WindowOutline",
-		AnchorPoint = Vector2.new(0.5, 0.5),
+		AnchorPoint = options.anchorPoint or Vector2.new(0.5, 0.5),
 		Position = options.position or UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(width, height),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
-		ClipsDescendants = true,
+		ClipsDescendants = false,
 	}, self.Gui)
-	corner(self.Outer, 4)
-	stroke(self.Outer, self.Theme.border, 1)
+	local glowImage = self.Images.glow4 or self.Images.glow
+	if glowImage then
+		self.Glow = create("ImageLabel", {
+			Name = "WindowGlow",
+			Position = UDim2.fromOffset(-20, -20),
+			Size = UDim2.new(1, 40, 1, 40),
+			BackgroundTransparency = 1,
+			Image = glowImage,
+			ImageColor3 = self.Theme.glow,
+			ImageTransparency = 0.8,
+			ScaleType = Enum.ScaleType.Slice,
+			SliceCenter = Rect.new(21, 21, 79, 79),
+			ZIndex = 0,
+		}, self.Outer)
+	end
+	self.AccentFrame = create("Frame", {
+		Name = "PinkInline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, self.Outer)
 
 	self.Body = create("Frame", {
 		Name = "WindowBody",
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = self.Theme.background,
+		BackgroundColor3 = self.Theme.contrastTop,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
-	}, self.Outer)
-	corner(self.Body, 3)
+	}, self.AccentFrame)
+	gradient(self.Body, self.Theme.contrastTop, self.Theme.contrastBottom)
 
 	self.Header = create("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 36),
-		BackgroundColor3 = self.Theme.surface,
+		Size = UDim2.new(1, 0, 0, 18),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
+		Active = true,
 	}, self.Body)
 	label(self.Header, options.title or "Backtrack UI", self.Theme, {
 		name = "Title",
-		position = UDim2.fromOffset(12, 0),
-		size = UDim2.new(0.48, -12, 1, 0),
-		textSize = 13,
-		font = Enum.Font.GothamBold,
+		position = UDim2.fromOffset(3, 1),
+		size = UDim2.new(1, -28, 1, -2),
+		textSize = 12,
+		color = self.Theme.accent,
 	})
+	self.CloseButton = create("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -5, 0, 2),
+		Size = UDim2.fromOffset(15, 14),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Font = Enum.Font.Legacy,
+		Text = "X",
+		TextSize = 12,
+		TextColor3 = self.Theme.text,
+		ZIndex = 5,
+	}, self.Header)
+	self.CloseButton.Activated:Connect(function() self.Outer.Visible = false end)
 
 	self.TabBar = create("Frame", {
 		Name = "Tabs",
-		Position = UDim2.fromOffset(0, 36),
-		Size = UDim2.new(1, 0, 0, 30),
-		BackgroundColor3 = self.Theme.background,
+		Position = UDim2.fromOffset(4, 18),
+		Size = UDim2.new(1, -8, 0, 22),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 	}, self.Body)
 	create("UIListLayout", {
@@ -274,19 +338,36 @@ function BacktrackUI.new(options)
 		Padding = UDim.new(0, 4),
 	}, self.TabBar)
 	create("UIPadding", {
-		PaddingLeft = UDim.new(0, 8),
-		PaddingTop = UDim.new(0, 3),
-		PaddingBottom = UDim.new(0, 3),
+		PaddingLeft = UDim.new(0, 1),
+		PaddingTop = UDim.new(0, 1),
+		PaddingBottom = UDim.new(0, 1),
 	}, self.TabBar)
-
-	self.Pages = create("Frame", {
-		Name = "Pages",
-		Position = UDim2.fromOffset(0, 66),
-		Size = UDim2.new(1, 0, 1, -66),
-		BackgroundTransparency = 1,
+	self.PageOutline = create("Frame", {
+		Name = "SectionOutline",
+		Position = UDim2.fromOffset(3, 40),
+		Size = UDim2.new(1, -6, 1, -44),
+		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 	}, self.Body)
+	self.PageInline = create("Frame", {
+		Name = "SectionInline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, self.PageOutline)
+
+	self.Pages = create("Frame", {
+		Name = "Pages",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, self.PageInline)
+	gradient(self.Pages, self.Theme.contrastTop, self.Theme.contrastBottom)
 
 	self._makeDrag(self)
 	self._installInput(self)
@@ -441,7 +522,8 @@ function BacktrackUI:_registerControl(control, options, initial, setValue)
 end
 
 function BacktrackUI:_setVisible(visible)
-	self.Gui.Enabled = visible ~= false
+	self.Gui.Enabled = true
+	self.Outer.Visible = visible ~= false
 end
 
 function BacktrackUI:SetTheme(overrides)
@@ -449,8 +531,11 @@ function BacktrackUI:SetTheme(overrides)
 	for key, value in pairs(self.Theme) do previous[key] = value end
 	local nextTheme = mergeTheme(overrides)
 	for key, value in pairs(nextTheme) do self.Theme[key] = value end
-	local properties = { "BackgroundColor3", "TextColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
+	local properties = { "BackgroundColor3", "TextColor3", "TextStrokeColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
 	for _, object in ipairs(self.Gui:GetDescendants()) do
+		if object:IsA("UIGradient") and object.Name == "ThemeGradient" then
+			object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
+		end
 		for key, oldColor in pairs(previous) do
 			local newColor = nextTheme[key]
 			if oldColor ~= newColor then
@@ -470,8 +555,9 @@ function BacktrackUI:SetVisible(visible)
 end
 
 function BacktrackUI:Toggle()
-	self.Gui.Enabled = not self.Gui.Enabled
-	return self.Gui.Enabled
+	self.Gui.Enabled = true
+	self.Outer.Visible = not self.Outer.Visible
+	return self.Outer.Visible
 end
 
 function BacktrackUI:SelectTab(tabOrName)
@@ -621,43 +707,100 @@ end
 
 function BacktrackUI:CreatePanel(title, options)
 	options = options or {}
-	local panel = { _window = self, _rows = {} }
+	local panel = { _window = self, _rows = {}, Name = title or "Panel", Image = options.image }
 	local frame = create("Frame", {
 		Name = options.name or "UtilityPanel",
 		Position = options.position or UDim2.fromOffset(24, 100),
 		Size = options.size or UDim2.fromOffset(260, 220),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
-		ClipsDescendants = true,
+		ClipsDescendants = false,
 	}, self.Gui)
-	corner(frame, 3)
-	stroke(frame, self.Theme.border, 1)
+	local glowImage = self.Images.glow4 or self.Images.glow
+	if glowImage then
+		create("ImageLabel", {
+			Name = "PanelGlow",
+			Position = UDim2.fromOffset(-20, -20),
+			Size = UDim2.new(1, 40, 1, 40),
+			BackgroundTransparency = 1,
+			Image = glowImage,
+			ImageColor3 = self.Theme.glow,
+			ImageTransparency = 0.8,
+			ScaleType = Enum.ScaleType.Slice,
+			SliceCenter = Rect.new(21, 21, 79, 79),
+			ZIndex = 0,
+		}, frame)
+	end
 	panel.Frame = frame
+	local accentFrame = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+	}, frame)
 	local inner = create("Frame", {
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = self.Theme.background,
+		BackgroundColor3 = self.Theme.contrastTop,
 		BorderSizePixel = 0,
-	}, frame)
-	corner(inner, 2)
-	local bar = create("Frame", {
-		Size = UDim2.new(1, 0, 0, 28),
-		BackgroundColor3 = self.Theme.surface,
+	}, accentFrame)
+	gradient(inner, self.Theme.contrastTop, self.Theme.contrastBottom)
+	local outlineContent = create("Frame", {
+		Position = UDim2.new(0, 0, 0, 18),
+		Size = UDim2.new(1, 0, 1, -18),
+		BackgroundColor3 = self.Theme.inline,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 	}, inner)
-	label(bar, title or "Panel", self.Theme, { position = UDim2.fromOffset(9, 0), size = UDim2.new(1, -18, 1, 0), font = Enum.Font.GothamBold })
+	local innerOutline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, outlineContent)
+	local contentFrame = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, innerOutline)
+	gradient(contentFrame, self.Theme.contrastTop, self.Theme.contrastBottom)
+	local bar = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 18),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Active = true,
+	}, inner)
+	label(bar, title or "Panel", self.Theme, { position = UDim2.fromOffset(3, 1), size = UDim2.new(1, -23, 1, -2), textSize = 12, color = self.Theme.accent })
+	local close = create("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -4, 0, 2),
+		Size = UDim2.fromOffset(13, 13),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Font = Enum.Font.Legacy,
+		Text = "X",
+		TextSize = 11,
+		TextColor3 = self.Theme.text,
+		ZIndex = 5,
+	}, inner)
+	close.Activated:Connect(function() frame.Visible = false end)
 	local content = create("ScrollingFrame", {
 		Name = "PanelContent",
-		Position = UDim2.fromOffset(6, 34),
-		Size = UDim2.new(1, -12, 1, -40),
+		Position = UDim2.fromOffset(5, 5),
+		Size = UDim2.new(1, -10, 1, -10),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 3,
 		ScrollBarImageColor3 = self.Theme.accent,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	}, inner)
-	create("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, content)
+	}, contentFrame)
+	create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, content)
 	local start, inputStart
 	connect(self, bar.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -704,8 +847,22 @@ function BacktrackUI:CreatePanel(title, options)
 		table.insert(self._rows, listFrame)
 		return list
 	end
-	function panel:SetVisible(visible) frame.Visible = visible ~= false end
-	function panel:Destroy() frame:Destroy() end
+	function panel:SetVisible(visible)
+		frame.Visible = visible ~= false
+	end
+	function panel:Toggle()
+		frame.Visible = not frame.Visible
+		return frame.Visible
+	end
+	function panel:Destroy()
+		if frame.Parent then frame:Destroy() end
+		for index, item in ipairs(self._window._panels) do
+			if item == self then table.remove(self._window._panels, index) break end
+		end
+		if self._window.Dock then self._window.Dock:Refresh() end
+	end
+	table.insert(self._panels, panel)
+	if self.Dock then self.Dock:Refresh() end
 	return panel
 end
 
@@ -718,7 +875,7 @@ function BacktrackUI:CreateWatermark(text, options)
 		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundColor3 = self.Theme.surface,
 		BorderSizePixel = 0,
-		Font = Enum.Font.GothamBold,
+		Font = Enum.Font.Legacy,
 		Text = "  " .. tostring(text or "Backtrack UI") .. "  ",
 		TextColor3 = self.Theme.text,
 		TextSize = 11,
@@ -749,6 +906,141 @@ function BacktrackUI:CreateWatermark(text, options)
 	}
 end
 
+function BacktrackUI:CreateDock(options)
+	options = options or {}
+	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
+	local dock = { _window = self, _buttons = {} }
+	local frame = create("Frame", {
+		Name = "BacktrackDock",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = options.position or UDim2.new(0.5, 0, 1, -120),
+		Size = options.size or UDim2.fromOffset(157, 39),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+		Active = true,
+		ZIndex = 10,
+	}, self.Gui)
+	dock.Frame = frame
+	local glowImage = self.Images.glow4 or self.Images.glow
+	if glowImage then
+		create("ImageLabel", {
+			Name = "DockGlow",
+			Position = UDim2.fromOffset(-20, -20),
+			Size = UDim2.new(1, 40, 1, 40),
+			BackgroundTransparency = 1,
+			Image = glowImage,
+			ImageColor3 = self.Theme.glow,
+			ImageTransparency = 0.8,
+			ScaleType = Enum.ScaleType.Slice,
+			SliceCenter = Rect.new(21, 21, 79, 79),
+			ZIndex = 9,
+		}, frame)
+	end
+	local inline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+		ZIndex = 11,
+	}, frame)
+	local face = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ZIndex = 12,
+	}, inline)
+	gradient(face, self.Theme.contrastTop, self.Theme.contrastBottom)
+	create("Frame", {
+		Name = "PinkCap",
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+		ZIndex = 13,
+	}, face)
+	local holder = create("Frame", {
+		Name = "DockButtons",
+		Position = UDim2.fromOffset(4, 6),
+		Size = UDim2.new(1, -8, 1, -10),
+		BackgroundTransparency = 1,
+		ZIndex = 14,
+	}, face)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 5),
+	}, holder)
+	local dragStart, positionStart
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragStart, positionStart = input.Position, frame.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if dragStart and positionStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(positionStart.X.Scale, positionStart.X.Offset + delta.X, positionStart.Y.Scale, positionStart.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
+	end)
+	function dock:AddButton(name, icon, callback)
+		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
+		local glyph = icon
+		if type(icon) == "string" and not image and icon:match("^[%w_%-]+$") then glyph = icon:sub(1, 1) end
+		local item = button(holder, image and "" or (glyph or tostring(name or "?"):sub(1, 1)), self._window.Theme, {
+			name = "DockButton",
+			size = UDim2.fromOffset(25, 25),
+			background = self._window.Theme.background,
+			border = self._window.Theme.inline,
+			textSize = 13,
+			zIndex = 15,
+		})
+		if image then
+			create("ImageLabel", {
+				Name = "Icon",
+				Position = UDim2.fromOffset(3, 3),
+				Size = UDim2.new(1, -6, 1, -6),
+				BackgroundTransparency = 1,
+				Image = image,
+				ImageColor3 = self._window.Theme.accent,
+				ResampleMode = Enum.ResamplerMode.Pixelated,
+				ZIndex = 16,
+			}, item)
+		end
+		item.LayoutOrder = #self._buttons + 1
+		item.Activated:Connect(function()
+			if callback then
+				invoke(callback)
+			else
+				self._window.Gui.Enabled = true
+				self._window.Outer.Visible = true
+			end
+		end)
+		table.insert(self._buttons, item)
+		return item
+	end
+	function dock:Refresh()
+		for _, item in ipairs(self._buttons) do item:Destroy() end
+		table.clear(self._buttons)
+		self:AddButton("Main", options.icon or "main", function()
+			self._window.Gui.Enabled = true
+			self._window.Outer.Visible = true
+		end)
+		for _, panel in ipairs(self._window._panels) do
+			self:AddButton(panel.Name, panel.Image, function() panel:Toggle() end)
+		end
+	end
+	function dock:SetVisible(visible) frame.Visible = visible ~= false end
+	function dock:Destroy() if frame.Parent then frame:Destroy() end end
+	dock:Refresh()
+	self.Dock = dock
+	return dock
+end
+
 function BacktrackUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
@@ -773,16 +1065,26 @@ function BacktrackUI:AddTab(name, iconText)
 		name = name.name or name.title
 	end
 	local index = #self._tabs + 1
-	local tab = setmetatable({ _window = self, Name = name or ("Tab " .. index), _columns = {}, _sectionCount = 0 }, Tab)
-	tab.Button = button(self.TabBar, iconText and (tostring(iconText) .. "  " .. tab.Name) or tab.Name, self.Theme, {
+	local tab = setmetatable({ _window = self, Name = name or ("Tab " .. index), _iconText = iconText, _columns = {}, _sectionCount = 0 }, Tab)
+	tab.Button = button(self.TabBar, tab.Name, self.Theme, {
 		name = "TabButton",
 		size = UDim2.new(0, 0, 1, 0),
-		height = 24,
-		background = self.Theme.surface,
-		textSize = 10,
+		height = 20,
+		background = self.Theme.background,
+		border = self.Theme.inline,
+		textSize = 11,
 	})
 	tab.Button.AutomaticSize = Enum.AutomaticSize.X
-	create("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, tab.Button)
+	create("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, tab.Button)
+	tab.Indicator = create("Frame", {
+		Name = "AccentLine",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+		Visible = false,
+	}, tab.Button)
 	tab.Page = create("ScrollingFrame", {
 		Name = "Page_" .. tostring(index),
 		Size = UDim2.new(1, 0, 1, 0),
@@ -855,8 +1157,9 @@ function Tab:SetActive(active)
 	end
 	for _, tab in ipairs(self._window._tabs) do
 		tab.Page.Visible = tab == self
-		tab.Button.BackgroundColor3 = tab == self and self._window.Theme.accent or self._window.Theme.surface
-		tab.Button.TextColor3 = tab == self and Color3.new(1, 1, 1) or self._window.Theme.text
+		tab.Button.BackgroundColor3 = self._window.Theme.background
+		tab.Button.TextColor3 = tab == self and self._window.Theme.accent or self._window.Theme.text
+		tab.Indicator.Visible = tab == self
 	end
 	self._window.ActiveTab = self
 end
@@ -873,29 +1176,29 @@ function Column:AddSection(title)
 		BackgroundColor3 = window.Theme.surface,
 		BorderSizePixel = 0,
 	}, self.Frame)
-	corner(section.Frame, 3)
-	stroke(section.Frame, window.Theme.border, 1)
+	stroke(section.Frame, window.Theme.outline, 1)
+	gradient(section.Frame, window.Theme.contrastTop, window.Theme.contrastBottom)
 	label(section.Frame, section.Name, window.Theme, {
-		position = UDim2.fromOffset(9, 4),
-		size = UDim2.new(1, -18, 0, 22),
-		font = Enum.Font.GothamBold,
-		textSize = 11,
+		position = UDim2.fromOffset(7, 2),
+		size = UDim2.new(1, -14, 0, 18),
+		color = window.Theme.accent,
+		textSize = 12,
 	})
 	create("Frame", {
-		Position = UDim2.fromOffset(8, 27),
-		Size = UDim2.new(1, -16, 0, 1),
-		BackgroundColor3 = window.Theme.border,
+		Position = UDim2.fromOffset(6, 22),
+		Size = UDim2.new(1, -12, 0, 1),
+		BackgroundColor3 = window.Theme.inline,
 		BorderSizePixel = 0,
 	}, section.Frame)
 	section.Content = create("Frame", {
 		Name = "Controls",
-		Position = UDim2.fromOffset(8, 32),
-		Size = UDim2.new(1, -16, 0, 0),
+		Position = UDim2.fromOffset(6, 26),
+		Size = UDim2.new(1, -12, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 	}, section.Frame)
-	create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, section.Content)
-	create("UIPadding", { PaddingBottom = UDim.new(0, 8) }, section.Content)
+	create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, section.Content)
+	create("UIPadding", { PaddingBottom = UDim.new(0, 4) }, section.Content)
 	return section
 end
 
@@ -1173,7 +1476,7 @@ function Section:Textbox(options)
 		BackgroundColor3 = self._window.Theme.background,
 		BorderSizePixel = 0,
 		ClearTextOnFocus = false,
-		Font = Enum.Font.Gotham,
+				Font = Enum.Font.Legacy,
 		Text = tostring(options.default or ""),
 		PlaceholderText = options.placeholder or "Type here...",
 		PlaceholderColor3 = self._window.Theme.muted,
@@ -1747,8 +2050,10 @@ BacktrackUI.window = function(_, options)
 		width = options.width,
 		height = options.height,
 		position = options.position,
+		anchorPoint = options.anchor_point,
 		toggleKey = options.toggle_key,
 		theme = options.theme,
+		images = options.images,
 	})
 end
 BacktrackUI.panel = function(self, options)
@@ -1775,6 +2080,7 @@ BacktrackUI.tool_tip = function(self, options)
 end
 BacktrackUI.unload = BacktrackUI.Destroy
 BacktrackUI.set_theme = BacktrackUI.SetTheme
+BacktrackUI.create_dock = BacktrackUI.CreateDock
 Tab.column = Tab.AddColumn
 Tab.section = Tab.AddSection
 Column.section = Column.AddSection
