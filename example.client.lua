@@ -1,4 +1,6 @@
 -- Requires an environment that supports game:HttpGet and loadstring.
+-- This is a visual demo of the original menu layout. All callbacks are inert
+-- examples; the library does not implement the source script's game behavior.
 local BacktrackUI = loadstring(game:HttpGet(
 	"https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua"
 ))()
@@ -6,112 +8,142 @@ local BacktrackUI = loadstring(game:HttpGet(
 local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
 local showCompanionPanels = viewport.X >= 1858 and viewport.Y >= 866
 
+-- Executors with file APIs can load the original pixel icons and glow directly
+-- from this public repo. Other environments keep the built-in text fallback.
+local images = {}
+local customAsset = getcustomasset or getsynasset
+if type(writefile) == "function" and type(customAsset) == "function" then
+	local folder = "backtrack_ui_assets"
+	if type(isfolder) == "function" and type(makefolder) == "function" then
+		local ok, exists = pcall(isfolder, folder)
+		if not ok or not exists then pcall(makefolder, folder) end
+	end
+
+	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "glow4" }) do
+		local path = folder .. "/" .. name .. ".png"
+		local exists = false
+		if type(isfile) == "function" then
+			local ok, result = pcall(isfile, path)
+			exists = ok and result == true
+		end
+		if not exists then
+			local ok, bytes = pcall(function()
+				return game:HttpGet("https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/assets/roblox/" .. name .. ".png")
+			end)
+			if ok and type(bytes) == "string" and #bytes > 0 then
+				pcall(writefile, path, bytes)
+			end
+		end
+		local ok, content = pcall(customAsset, path)
+		if ok and type(content) == "string" then images[name] = content end
+	end
+end
+
 local menu = BacktrackUI.new({
-	title = "Backtrack",
+	title = "backtrack.tech - " .. os.date("%b %d %Y"),
 	name = "BacktrackUI",
 	anchorPoint = showCompanionPanels and Vector2.zero or Vector2.new(0.5, 0.5),
 	position = showCompanionPanels and UDim2.new(0.5, -398, 0.5, -433) or UDim2.fromScale(0.5, 0.5),
-	toggleKey = Enum.KeyCode.RightShift,
-	images = {
-		-- Upload the PNGs in assets/roblox to Roblox, then paste their asset IDs here.
-		-- main = "rbxassetid://YOUR_MAIN_ICON_ID",
-		-- style = "rbxassetid://YOUR_STYLE_ICON_ID",
-		-- configurations = "rbxassetid://YOUR_CONFIGURATIONS_ICON_ID",
-		-- playerlist = "rbxassetid://YOUR_PLAYERLIST_ICON_ID",
-		-- output = "rbxassetid://YOUR_OUTPUT_ICON_ID",
-		-- glow4 = "rbxassetid://YOUR_GLOW4_IMAGE_ID",
-	},
+	toggleKey = Enum.KeyCode.End,
+	images = images,
 })
 
-local general = menu:AddTab("General", "main")
-local generalLeft = general:Column()
-local generalRight = general:Column()
+local function previewToggle(section, name, default)
+	return section:Toggle({
+		name = name,
+		flag = name:lower():gsub("[^%w]+", "_"),
+		default = default == true,
+		callback = function(value)
+			print(name .. ":", value)
+		end,
+	})
+end
 
-local controls = generalLeft:AddSection("Controls")
-local enabled = controls:Toggle({
-	name = "Enabled",
-	flag = "enabled",
-	default = true,
-	callback = function(value)
-		print("Enabled:", value)
-	end,
-})
-enabled:Keybind({
-	name = "Enabled bind",
-	flag = "enabled_bind",
-	mode = "Toggle",
-	callback = function(value)
-		print("Bind active:", value)
-	end,
-})
-enabled:Colorpicker({
-	name = "Enabled color",
-	flag = "enabled_color",
-	color = Color3.fromRGB(255, 98, 127),
-	callback = function(color, alpha)
-		print("Color:", color, "opacity:", alpha)
-	end,
-})
+local function previewSlider(section, name, min, max, default, suffix)
+	return section:Slider({
+		name = name,
+		flag = name:lower():gsub("[^%w]+", "_"),
+		min = min,
+		max = max,
+		default = default,
+		step = 1,
+		suffix = suffix or "",
+	})
+end
 
-local values = generalLeft:AddSection("Values")
-values:Slider({
-	name = "Strength",
-	flag = "strength",
-	min = 0,
-	max = 100,
-	step = 5,
-	default = 30,
-	suffix = "%",
-})
-values:Textbox({
-	name = "Label",
-	flag = "label",
-	default = "Sample",
-	placeholder = "Enter a label",
-	max = 32,
-})
+-- These are the four tabs and the compact two-column control layout used by
+-- the source menu. The displayed controls only demonstrate the UI library.
+local combat = menu:AddTab("Combat")
+local combatAim = combat:Column():AddSection("Aiming")
+local combatOther = combat:Column():AddSection("Other")
+local weaponMods = combat:Column():AddSection("Weapon Modifications")
 
-local choices = generalRight:AddSection("Choices")
-choices:Dropdown({
-	name = "Single choice",
-	flag = "single_choice",
-	items = { "First", "Second", "Third" },
-	default = "First",
-})
-choices:Dropdown({
-	name = "Multiple choice",
-	flag = "multiple_choice",
-	items = { "Alpha", "Beta", "Gamma" },
-	multi = true,
-	default = { "Alpha" },
-})
-choices:Configuration({ name = "Extra options" }, function(section)
-	section:Toggle({ name = "Show watermark", flag = "show_watermark", default = true })
-	section:Button({ name = "Send notice", callback = function() menu:Notify("Hello from the UI library.", 3, "success") end })
-end)
+local silentAim = previewToggle(combatAim, "Silent Aim")
+silentAim:Keybind({ name = "Silent Aim", flag = "silent_aim_bind", mode = "Hold" })
+silentAim:Colorpicker({ name = "Aim Color", flag = "aim_color", color = Color3.fromRGB(255, 98, 127) })
+local aimAssist = previewToggle(combatAim, "Aim Assist")
+aimAssist:Keybind({ name = "Aim Assist", flag = "aim_assist_bind", mode = "Hold" })
+previewToggle(combatAim, "Auto Shoot")
+previewToggle(combatAim, "Wall Check")
+previewToggle(combatAim, "Dead Check")
+previewToggle(combatAim, "Distance Check")
+previewSlider(combatAim, "Field of View", 1, 180, 90, "°")
 
-local tools = menu:AddTab("Tools", "output")
-local toolsColumn = tools:Column()
-local outputSection = toolsColumn:AddSection("Output")
-local output = outputSection:Output({ height = 180 })
-output:Add("Library loaded", "INFO")
-output:Add("Callbacks are owned by the host script", "READY")
-
-local settings = menu:AddTab("Settings", "style")
-local settingsSection = settings:Column():AddSection("Appearance")
-settingsSection:Label({ name = "Accent", text = "#FF627F" })
-settingsSection:Button({
-	name = "Restore accent",
-	callback = function()
-		menu:SetTheme({ accent = Color3.fromRGB(255, 98, 127), glow = Color3.fromRGB(255, 98, 127) })
-	end,
+combatOther:Dropdown({
+	name = "Target Sorting Type",
+	flag = "target_sorting",
+	items = { "Closest To Mouse", "Distance" },
+	default = "Closest To Mouse",
 })
+previewToggle(combatOther, "Target Players", true)
+previewToggle(combatOther, "Target AI", true)
+previewToggle(combatOther, "Prioritize Enemies", true)
+combatOther:Dropdown({ name = "Priority", flag = "priority", items = { "Enemy", "Neutral", "Friendly" }, default = "Neutral" })
 
-local configs = menu:AddTab("Configs", "configurations")
-local configSection = configs:Column():AddSection("Configurations")
-configSection:Textbox({ name = "Name", flag = "config_name", placeholder = "Type here...", max = 30 })
-configSection:Button({ name = "Save", callback = function() menu:Notify("Save from your own callback", 3) end })
-configSection:Button({ name = "Load", callback = function() menu:Notify("Load from your own callback", 3) end })
+previewToggle(weaponMods, "No Recoil")
+previewToggle(weaponMods, "No Spread")
+previewToggle(weaponMods, "Instant Equip")
+previewSlider(weaponMods, "Fire Rate", 1, 100, 10, "%")
+previewSlider(weaponMods, "Reload Speed", 1, 100, 10, "%")
+
+local playersTab = menu:AddTab("Players")
+local playersColumn = playersTab:Column()
+local playersSection = playersColumn:AddSection("Playerlist")
+playersSection:List({
+	name = "Players",
+	height = 170,
+	items = { "Local player", "Example player", "Another player" },
+})
+playersSection:Dropdown({ name = "Priority", flag = "player_priority", items = { "Enemy", "Neutral", "Friendly" }, default = "Neutral" })
+playersSection:Button({ name = "Refresh Playerlist", callback = function() print("Playerlist preview refreshed") end })
+
+local misc = menu:AddTab("Misc")
+local movement = misc:Column():AddSection("Movement")
+local localOptions = misc:Column():AddSection("Local")
+local replication = misc:Column():AddSection("Replication")
+previewToggle(movement, "Flyhack")
+previewSlider(movement, "Horizontal Speed", 1, 100, 16)
+previewSlider(movement, "Vertical Speed", 1, 100, 16)
+previewToggle(movement, "Infinite Stamina")
+previewToggle(localOptions, "Third Person")
+previewToggle(localOptions, "Custom FOV")
+previewSlider(localOptions, "Field of View", 60, 120, 90, "°")
+previewToggle(replication, "Name Changer")
+previewToggle(replication, "Fake Lag")
+
+local visuals = menu:AddTab("Visuals")
+local playerVisuals = visuals:Column():AddSection("Player ESP")
+local worldVisuals = visuals:Column():AddSection("World")
+local visualOther = visuals:Column():AddSection("Other")
+previewToggle(playerVisuals, "ESP Enabled")
+previewToggle(playerVisuals, "Bounding Box")
+previewToggle(playerVisuals, "Name")
+previewToggle(playerVisuals, "Distance")
+previewToggle(playerVisuals, "Health Bar")
+previewToggle(worldVisuals, "Remove Foliage")
+previewToggle(worldVisuals, "Item ESP")
+previewToggle(visualOther, "Snapline")
+previewToggle(visualOther, "Field of View Circle")
 
 if showCompanionPanels then
 	local style = menu:CreatePanel("Style", {
@@ -121,9 +153,23 @@ if showCompanionPanels then
 		position = UDim2.new(0.5, 208, 0.5, -433),
 	})
 	style:AddLabel("Theme")
-	style:AddLabel("Accent: #FF627F")
-	style:AddLabel("Outline: #0A0A0A")
-	style:AddLabel("Inline: #222222")
+	style:AddLabel("Menu Accent                         #FF627F")
+	style:AddLabel("Contrast              Low           High")
+	style:AddLabel("Inline                                   #222222")
+	style:AddLabel("Outline                                #0A0A0A")
+	style:AddLabel("Text Color                            #E0E0E0")
+	style:AddLabel("Text Outline                         #000000")
+	style:AddLabel("Glow                                     #FF627F")
+	style:AddLabel("Tweening Style                    Circular")
+	style:AddLabel("Tweening Direction              InOut")
+	style:AddLabel("Tweening Time                      0.15s")
+	style:AddLabel("Pointer Design                     On")
+	style:AddLabel("Accessibility")
+	style:AddLabel("UI Bind                                End")
+	style:AddLabel("Keybind List                         On")
+	style:AddLabel("Watermark")
+	style:AddLabel("UI Management                    On")
+	style:AddLabel("Aero Snap                            On")
 	style:AddButton("Restore theme", function()
 		menu:SetTheme({
 			accent = Color3.fromRGB(255, 98, 127),
@@ -140,34 +186,34 @@ if showCompanionPanels then
 		size = UDim2.fromOffset(324, 438),
 		position = UDim2.new(0.5, 208, 0.5, -433),
 	})
-	configurationPanel:AddLabel("Active configuration")
+	configurationPanel:AddLabel("Options")
 	configurationPanel:AddList({ "Default", "Example" })
-	configurationPanel:AddButton("Create", function() menu:Notify("Use your own save callback", 3) end)
-	configurationPanel:AddButton("Load", function() menu:Notify("Use your own load callback", 3) end)
+	configurationPanel:AddLabel("Type here...")
+	configurationPanel:AddButton("Create", function() print("Add your configuration callback here") end)
+	configurationPanel:AddButton("Load", function() print("Add your configuration callback here") end)
 	configurationPanel:SetVisible(false)
 
-	local players = menu:CreatePanel("Playerlist", {
+	local playerPanel = menu:CreatePanel("Playerlist", {
 		name = "PlayerlistPanel",
 		image = "playerlist",
 		size = UDim2.fromOffset(529, 445),
 		position = UDim2.new(0.5, -929, 0.5, -433),
 	})
-	players:AddLabel("Players")
-	players:AddList({ "Local player", "Example player", "Another player" })
+	playerPanel:AddLabel("Playerlist")
+	playerPanel:AddList({ "Local player", "Example player", "Another player" })
+	playerPanel:AddLabel("Priority")
+	playerPanel:AddButton("Enemy     Neutral     Friendly", function() end)
 
-	local standaloneOutput = menu:CreatePanel("Output", {
+	local outputPanel = menu:CreatePanel("Output", {
 		name = "OutputPanel",
 		image = "output",
 		size = UDim2.fromOffset(529, 267),
 		position = UDim2.new(0.5, -929, 0.5, 14),
 	})
-	standaloneOutput:AddLabel("[INFO] Library loaded")
-	standaloneOutput:AddLabel("[READY] UI callbacks are available")
-	standaloneOutput:AddButton("Clear Output", function()
-		for _, child in ipairs(standaloneOutput.Frame:GetDescendants()) do
-			if child:IsA("TextLabel") and (child.Text:find("%[INFO%]") or child.Text:find("%[READY%]")) then child:Destroy() end
-		end
-	end)
+	outputPanel:AddLabel("Output")
+	outputPanel:AddLabel("[INFO] Backtrack UI loaded")
+	outputPanel:AddLabel("[READY] Interface preview")
+	outputPanel:AddButton("Clear Output", function() end)
 end
 
 menu:CreateDock({ icon = "main" })

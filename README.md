@@ -1,12 +1,12 @@
 # Backtrack UI
 
-A standalone Luau UI library based on the reusable menu patterns in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The default window now follows the source layout: 604×631, square nested outlines, a rose inner frame, a dark blue-grey vertical gradient, compact tabs, and a 157×39 dock. Optional companion panels can be placed around it with `CreatePanel`.
+A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example uses the original `Combat`, `Players`, `Misc`, and `Visuals` tabs and recreates the 604×631 window with its square nested outlines, rose accent, dark blue-grey gradient, compact controls, dock, and source-sized companion panels.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. Roblox does not expose the source's downloaded Tahoma font as a built-in font, so the library uses the built-in `Enum.Font.Legacy` face as a compact fallback. The source PNG icons and glow image are included in [`assets/roblox`](assets/roblox); upload them to Roblox and pass the returned asset IDs in `options.images` if you want the original image treatment.
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))` and, when executor file APIs are available, downloads the original PNG icons and glow into a local asset cache with `getcustomasset` or `getsynasset`. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. Roblox does not expose the source's downloaded Tahoma font as a built-in font, so the library uses `Enum.Font.Legacy` as its compact fallback.
 
 ## Quick start
 
-Place `backtrack_ui.lua` in a `ModuleScript`, then require it from a `LocalScript`:
+In Roblox Studio, place `backtrack_ui.lua` in a `ModuleScript`, then require it from a `LocalScript`:
 
 ```lua
 local BacktrackUI = require(script.Parent.backtrack_ui)
@@ -64,6 +64,8 @@ display:Button({
 
 When no `parent` is supplied, `BacktrackUI.new` parents the menu to the local player's `PlayerGui`. Pass `parent` to host the GUI elsewhere. `toggleKey` accepts a Roblox `Enum.KeyCode`.
 
+The [example client](example.client.lua) loads the public library directly from GitHub with `loadstring` and demonstrates the source UI arrangement. Its callbacks are inert examples.
+
 ## Components
 
 - Window with draggable title bar, tab navigation, visibility toggle, and theme overrides.
@@ -71,7 +73,7 @@ When no `parent` is supplied, `BacktrackUI.new` parents the menu to the local pl
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
 - Source-sized detached utility panels, a draggable 157×39 navigation dock, watermark, and notifications.
-- Optional SVG icons are included in [`assets/icons`](assets/icons/). The original PNG icons and glow image are in [`assets/roblox`](assets/roblox). Roblox `ImageLabel` cannot load local PNG files directly; upload them to Roblox, then pass their `rbxassetid://...` values in `options.images`.
+- SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox). Roblox Studio users can upload them and pass their `rbxassetid://...` values in `options.images`; the executor example loads them from the public repo when local asset APIs are available.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
