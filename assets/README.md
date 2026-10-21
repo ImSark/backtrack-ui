@@ -1,8 +1,8 @@
 # Backtrack UI assets
 
-This folder contains a small, original SVG icon set and the source menu's extracted color palette. The icons use a 24×24 view box, transparent background, rounded strokes, and `currentColor` so they can be recolored when inlined in a web page or edited in a vector editor.
+This folder contains an SVG icon set, a Roblox PNG set from the source menu, and its extracted color palette. The SVG icons use a 24×24 view box, transparent background, rounded strokes, and `currentColor` so they can be recolored when inlined in a web page or edited in a vector editor.
 
-The Lua library draws its controls with Roblox GUI primitives and does not need these files. Roblox `ImageLabel` does not load SVG files directly; convert an icon to PNG and upload it to Roblox if you want to use it there.
+The Lua library draws its controls with Roblox GUI primitives. Roblox `ImageLabel` does not load SVG files directly; convert an icon to PNG and upload it to Roblox if you want to use one there.
 
 ## Included icons
 
@@ -26,4 +26,4 @@ For a standalone `<img>`, `currentColor` defaults to black; set a stroke color i
 
 ## Original source assets
 
-The referenced script loads separate PNG, MP3, and font files from the upstream [`backtrack-tech/backtrack.tech` repository](https://github.com/backtrack-tech/backtrack.tech). Those files are not required by this UI library and are not copied into this package. The source identifies their names and paths; see its [`storage`](https://github.com/backtrack-tech/backtrack.tech/tree/main/storage), [`fonts`](https://github.com/backtrack-tech/backtrack.tech/tree/main/fonts), [`hitmarkers`](https://github.com/backtrack-tech/backtrack.tech/tree/main/hitmarkers), and [`hitsounds`](https://github.com/backtrack-tech/backtrack.tech/tree/main/hitsounds) folders for the original files.
+The Roblox UI images are from the upstream [`backtrack-tech/backtrack.tech` storage folder](https://github.com/backtrack-tech/backtrack.tech/tree/main/storage) and are documented in [`roblox/README.md`](roblox/README.md). The `loadstring` example downloads the five dock icons and glow into a local cache when `writefile` and `getcustomasset` (or `getsynasset`) are available. Roblox Studio users can upload the PNGs and pass their asset IDs in `options.images`. The UI library does not require sounds, hitmarkers, or hitsounds.
