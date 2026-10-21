@@ -1253,7 +1253,7 @@ function BacktrackUI:CreateDock(options)
 	function dock:Refresh()
 		for _, item in ipairs(self._buttons) do item:Destroy() end
 		table.clear(self._buttons)
-		self:AddButton("Main", options.icon or "main", function()
+		self:AddButton(self._labels and "Home" or "Main", options.icon or "main", function()
 			self._window.Gui.Enabled = true
 			self._window.Outer.Visible = true
 		end)
