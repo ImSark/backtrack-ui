@@ -79,7 +79,7 @@ local menu = BacktrackUI.new({
 	name = "BacktrackUI",
 	anchorPoint = showCompanionPanels and Vector2.zero or Vector2.new(0.5, 0.5),
 	position = showCompanionPanels and UDim2.new(0.5, -398, 0.5, -433) or UDim2.fromScale(0.5, 0.5),
-	toggleKey = Enum.KeyCode.End,
+	toggleKey = Enum.KeyCode.Delete,
 	images = images,
 	theme = fontFace and { fontFace = fontFace } or nil,
 })
