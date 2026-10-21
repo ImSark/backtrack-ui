@@ -105,23 +105,40 @@ if previousMenu then pcall(function() previousMenu:Destroy() end) end
 runtimeEnv.__BacktrackUIInstance = nil
 
 local localPlayer = game:GetService("Players").LocalPlayer
-if localPlayer then
-	local playerGui = localPlayer:FindFirstChildOfClass("PlayerGui") or localPlayer:WaitForChild("PlayerGui")
-	for _, child in ipairs(playerGui:GetChildren()) do
-		if child:IsA("ScreenGui") and child.Name == "BacktrackUI" then child:Destroy() end
+
+local getHiddenGui = gethui or get_hidden_gui
+local uiParent
+if type(getHiddenGui) == "function" then
+	local ok, hiddenGui = pcall(getHiddenGui)
+	if ok then uiParent = hiddenGui end
+end
+if not uiParent and localPlayer then
+	uiParent = localPlayer:FindFirstChildOfClass("PlayerGui") or localPlayer:WaitForChild("PlayerGui")
+end
+if uiParent then
+	for _, child in ipairs(uiParent:GetChildren()) do
+		if child:IsA("ScreenGui") and (child.Name == "BacktrackUI" or child.Name:match("^BacktrackUI_")) then child:Destroy() end
 	end
 end
+
+local camera = workspace.CurrentCamera
+local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+local mainPosition = Vector2.new(viewport.X / 2 - 302 - 96, viewport.Y / 2 - 421 - 12)
 
 local menu = BacktrackUI.new({
 	title = "backtrack.tech - " .. os.date("%b %d %Y"),
 	name = "BacktrackUI",
-	anchorPoint = Vector2.new(0.5, 0.5),
-	position = UDim2.fromScale(0.5, 0.5),
+	parent = uiParent,
+	anchorPoint = Vector2.zero,
+	position = UDim2.fromOffset(mainPosition.X, mainPosition.Y),
 	toggleKey = Enum.KeyCode.Delete,
 	images = images,
 	theme = fontFace and { fontFace = fontFace } or nil,
 })
 runtimeEnv.__BacktrackUIInstance = menu
+menu:CreatePointer()
+local keybindList = menu:CreateKeybindList()
+local watermark = menu:CreateWatermark("backtrack.tech")
 
 local function previewToggle(section, name, default)
 	local flag = name:lower():gsub("[^%w]+", "_")
@@ -550,121 +567,181 @@ populate(crosshair, {
 	}),
 })
 
-local consoleOutput
-local function logConsole(message, level, color)
-	if consoleOutput then consoleOutput:Add(message, level, color) end
-	print("[BacktrackUI]", message)
-end
-
-local configPanel = menu:CreatePanel("Config", {
-	name = "ConfigWindow",
-	image = "configurations",
-	position = UDim2.new(0, 24, 0, 100),
-	size = UDim2.fromOffset(370, 440),
-	visible = false,
-})
-local profileList
-local profileName
-local profiles = { "Default", "Example" }
-local profilesSection = configPanel:AddColumn():AddSection("Profiles")
-local profileActions = profilesSection
-profileName = profileActions:Textbox({ name = "Profile Name", default = "Default", placeholder = "Enter a profile name", max = 32 })
-profileList = profilesSection:List({
-	name = "Saved Profiles",
-	height = 230,
-	items = profiles,
-	callback = function(value)
-		profileName:Set(tostring(value), true)
-		logConsole("Selected profile: " .. tostring(value), "CONFIG")
-	end,
-})
-profileActions:ButtonHolder({ name = "Actions" })
-profileActions:Button({ name = "Create Demo Profile", callback = function()
-	local name = profileName:Get()
-	if name == "" then return end
-	table.insert(profiles, name)
-	profileList:SetItems(profiles)
-	logConsole("Created demo profile: " .. name, "CONFIG")
-end })
-profileActions:Button({ name = "Save Demo Profile", callback = function()
-	logConsole("Save callback ready for profile: " .. profileName:Get(), "CONFIG")
-end })
-profileActions:Button({ name = "Load Demo Profile", callback = function()
-	logConsole("Load callback ready for profile: " .. profileName:Get(), "CONFIG")
-end })
-profileActions:Button({ name = "Delete Demo Profile", callback = function()
-	local name = profileName:Get()
-	for index, profile in ipairs(profiles) do
-		if profile == name then table.remove(profiles, index); break end
-	end
-	profileList:SetItems(profiles)
-	logConsole("Removed demo profile: " .. name, "CONFIG")
-end })
-
-local themePanel = menu:CreatePanel("Theme", {
-	name = "ThemeWindow",
+local sourceStyle = menu:CreatePanel("Style", {
+	name = "Style",
 	image = "style",
-	position = UDim2.new(1, -394, 0, 100),
-	size = UDim2.fromOffset(370, 470),
-	visible = false,
+	position = UDim2.fromOffset(mainPosition.X + 606, mainPosition.Y),
+	size = UDim2.fromOffset(394, 631),
 })
-local themeSection = themePanel:AddColumn():AddSection("Appearance")
-local themePresets = themeSection
-local themeColors = themeSection
-local presets = {
-	Rose = { accent = Color3.fromRGB(255, 98, 127), glow = Color3.fromRGB(255, 98, 127) },
-	Violet = { accent = Color3.fromRGB(154, 135, 254), glow = Color3.fromRGB(154, 135, 254) },
-	Ocean = { accent = Color3.fromRGB(83, 190, 222), glow = Color3.fromRGB(83, 190, 222) },
-}
-themePresets:Dropdown({
-	name = "Color Preset",
-	items = { "Rose", "Violet", "Ocean" },
-	default = "Rose",
-	callback = function(name)
-		if presets[name] then
-			menu:SetTheme(presets[name])
-			logConsole("Applied " .. name .. " theme", "THEME")
-		end
+local sourceStyleColumn = sourceStyle:AddColumn()
+local themeSection = sourceStyleColumn:AddSection("Theme")
+themeSection:Label({ name = "Menu Accent" }):Colorpicker({
+	name = "Menu Accent",
+	color = menu.Theme.accent,
+	flag = "accent",
+	callback = function(color) menu:SetTheme({ accent = color, glow = color }) end,
+})
+local contrastLabel = themeSection:Label({ name = "Contrast" })
+contrastLabel:Colorpicker({
+	name = "Low",
+	color = menu.Theme.contrastBottom,
+	flag = "low_contrast",
+	callback = function(color)
+		menu:SetTheme({ contrastBottom = color })
 	end,
 })
-themePresets:Label({ name = "Changes apply immediately" })
-themeColors:Colorpicker({ name = "Accent", color = menu.Theme.accent, callback = function(color)
-	menu:SetTheme({ accent = color, glow = color })
-	logConsole("Updated accent color", "THEME")
-end })
-themeColors:Colorpicker({ name = "Background", color = menu.Theme.background, callback = function(color)
-	menu:SetTheme({ background = color, surface = color })
-	logConsole("Updated background color", "THEME")
-end })
-themeColors:Colorpicker({ name = "Text", color = menu.Theme.text, callback = function(color)
-	menu:SetTheme({ text = color })
-	logConsole("Updated text color", "THEME")
-end })
-
-local consolePanel = menu:CreatePanel("Console", {
-	name = "ConsoleWindow",
-	image = "output",
-	position = UDim2.new(0, 24, 1, -420),
-	size = UDim2.fromOffset(440, 400),
-	visible = false,
+contrastLabel:Colorpicker({
+	name = "High",
+	color = menu.Theme.contrastTop,
+	flag = "high_contrast",
+	callback = function(color)
+		menu:SetTheme({ contrastTop = color })
+	end,
 })
-local consoleSection = consolePanel:AddColumn():AddSection("Output")
-local consoleActions = consoleSection
-consoleOutput = consoleSection:Output({ height = 270 })
-consoleOutput:Add("Backtrack UI loaded", "INFO", Color3.fromRGB(154, 135, 254))
-consoleOutput:Add("Console ready", "SUCCESS", Color3.fromRGB(122, 255, 117))
-local consoleMessage = consoleActions:Textbox({ name = "Message", placeholder = "Type a message to log", max = 80 })
-consoleActions:ButtonHolder({ name = "Console Actions" })
-consoleActions:Button({ name = "Write Message", callback = function()
-	local message = consoleMessage:Get()
-	if message ~= "" then logConsole(message, "USER") end
-end })
-consoleActions:Button({ name = "Write Sample", callback = function()
-	logConsole("This is a sample console entry", "INFO", Color3.fromRGB(154, 135, 254))
-end })
-consoleActions:Button({ name = "Clear Console", callback = function()
-	consoleOutput:Clear()
-end })
+themeSection:Label({ name = "Inline" }):Colorpicker({
+	name = "Inline",
+	color = menu.Theme.inline,
+	flag = "inline",
+	callback = function(color) menu:SetTheme({ inline = color }) end,
+})
+themeSection:Label({ name = "Outline" }):Colorpicker({
+	name = "Outline",
+	color = menu.Theme.outline,
+	flag = "outline",
+	callback = function(color) menu:SetTheme({ outline = color }) end,
+})
+local textColorLabel = themeSection:Label({ name = "Text Color" })
+textColorLabel:Colorpicker({
+	name = "Text Color",
+	color = menu.Theme.text,
+	flag = "text_color",
+	callback = function(color) menu:SetTheme({ text = color }) end,
+})
+textColorLabel:Colorpicker({
+	name = "Text Outline Color",
+	color = menu.Theme.text_outline,
+	flag = "text_outline",
+	callback = function(color) menu:SetTheme({ text_outline = color }) end,
+})
+themeSection:Label({ name = "Glow" }):Colorpicker({
+	name = "Glow",
+	color = menu.Theme.glow,
+	alpha = 0.2,
+	flag = "glow",
+	callback = function(color) menu:SetTheme({ glow = color }) end,
+})
+themeSection:Dropdown({
+	name = "Tweening Style",
+	items = { "Linear", "Sine", "Back", "Quad", "Quart", "Quint", "Bounce", "Elastic", "Circular", "Cubic", "Exponential" },
+	default = "Circular",
+})
+themeSection:Dropdown({
+	name = "Tweening Direction",
+	items = { "In", "Out", "InOut" },
+	default = "InOut",
+})
+themeSection:Slider({ name = "Tweening Time", min = 0.05, max = 1, default = 0.15, step = 0.01, suffix = "s" })
+themeSection:Toggle({
+	name = "Pointer Design",
+	default = true,
+	callback = function(enabled) menu:SetPointerEnabled(enabled) end,
+})
 
-local dock = menu:CreateDock({ icon = "main" })
-menu:CreateWatermark("backtrack.tech")
+local accessibilitySection, otherStyleSection = sourceStyleColumn:MultiSection({
+	names = { "Accessibility", "Other" },
+})
+accessibilitySection:Label({ name = "UI Bind" }):Keybind({
+	name = "UI Bind",
+	key = Enum.KeyCode.Delete,
+	mode = "Toggle",
+})
+accessibilitySection:Toggle({
+	name = "Keybind List",
+	flag = "keybind_list",
+	callback = function(visible) keybindList:SetVisible(visible) end,
+})
+accessibilitySection:Toggle({
+	name = "Watermark",
+	default = true,
+	flag = "watermark",
+	callback = function(visible) watermark:SetVisible(visible) end,
+}):Configuration({
+	name = "Watermark Options",
+}, function(configuration)
+	configuration:Dropdown({
+		name = "Watermark Elements",
+		items = { "Version", "FPS", "Ping", "UID", "Game", "Date", "Time" },
+		default = { "Version", "FPS", "Ping", "UID", "Game", "Date", "Time" },
+		multi = true,
+		flag = "watermark_elements",
+	})
+	configuration:Label({ name = "Custom Watermark Text" })
+	configuration:Textbox({
+		name = "Custom Watermark",
+		placeholder = "backtrack.tech",
+		max = 20,
+		flag = "custom_watermark",
+		callback = function(value) watermark:SetText(value == "" and "backtrack.tech" or value) end,
+	})
+end)
+accessibilitySection:Divider()
+accessibilitySection:Toggle({
+	name = "UI Management",
+	default = true,
+	flag = "ui_management",
+	tooltip = "Allows you to drag and resize UI elements",
+})
+accessibilitySection:Toggle({ name = "Aero Snap", default = true, flag = "aero_snap" })
+otherStyleSection:Button({ name = "Test Flashing Notification" })
+otherStyleSection:ButtonHolder({})
+otherStyleSection:Button({ name = "Rejoin Server", confirm = true })
+
+local configPanel = menu:CreatePanel("Configurations", {
+	name = "Configurations",
+	image = "configurations",
+	position = UDim2.fromOffset(mainPosition.X + 1002, mainPosition.Y),
+	size = UDim2.fromOffset(324, 438),
+})
+local configSection = configPanel:AddColumn():AddSection("Options")
+configSection:List({ name = "", height = 174, items = {} })
+configSection:Textbox({ name = "", placeholder = "Type here...", max = 30, flag = "config_name_text_box" })
+configSection:ButtonHolder({})
+configSection:Button({ name = "Create", confirm = true })
+configSection:Button({ name = "Delete", confirm = true })
+configSection:ButtonHolder({})
+configSection:Button({ name = "Load", confirm = true })
+configSection:Button({ name = "Save", confirm = true })
+configSection:ButtonHolder({})
+configSection:Button({ name = "Refresh Configurations" })
+configSection:ButtonHolder({})
+configSection:Button({ name = "Unload Configuration", confirm = true, confirmTime = 5 })
+configSection:ButtonHolder({})
+configSection:Button({ name = "Unload", confirm = true, confirmTime = 5 })
+
+local playerlistPanel = menu:CreatePanel("Playerlist", {
+	name = "Playerlist",
+	image = "playerlist",
+	position = UDim2.fromOffset(mainPosition.X - 531, mainPosition.Y),
+	size = UDim2.fromOffset(529, 445),
+})
+local playerSection = playerlistPanel:AddColumn():AddSection("Playerlist")
+local playerNames = {}
+for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+	table.insert(playerNames, player.Name)
+end
+if #playerNames == 0 then table.insert(playerNames, "No players") end
+playerSection:List({ name = "", height = 305, items = playerNames })
+playerSection:Dropdown({ name = "Priority", items = { "Enemy", "Neutral", "Friendly" }, default = "Neutral", flag = "PLAYERLIST_DROPDOWN" }):SetVisible(false)
+
+local outputPanel = menu:CreatePanel("Output", {
+	name = "Output",
+	image = "output",
+	position = UDim2.fromOffset(mainPosition.X - 531, mainPosition.Y + 447),
+	size = UDim2.fromOffset(529, 267),
+})
+local outputSection = outputPanel:AddColumn():AddSection("Output")
+local outputLog = outputSection:Output({ name = "", height = 182 })
+outputSection:ButtonHolder({})
+outputSection:Button({ name = "Clear Output", confirm = true, callback = function() outputLog:Clear() end })
+
+menu:CreateDock({ icon = "main" })

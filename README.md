@@ -1,8 +1,8 @@
 # Backtrack UI
 
-A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example reproduces the original `Combat`, `Players`, `Misc`, and `Visuals` tabs and adds `Config`, `Theme`, and `Console` tabs with matching dock shortcuts, demo profile controls, live theme presets and color pickers, and a scrollable console. It also keeps the 604×631 window, square outlines, rose accent, dark blue-grey gradient, compact controls, and dock.
+A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example recreates the four main tabs (`Combat`, `Players`, `Misc`, and `Visuals`) plus the separate `Style`, `Configurations`, `Playerlist`, and `Output` windows. It follows the source window sizes and screen-relative positions, square 25×25 dock icons, rose accent, dark blue-grey gradients, pixel icons, Tahoma font, and watermark treatment. Dock icons tint rose while their own window is open and inline-grey while it is closed.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It caches the PNG UI images and original Tahoma font under `backtrack_ui_assets`, using executor file APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It loads the PNG UI images and original Tahoma font through executor asset APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
 
 ## Executor loader
 
@@ -69,7 +69,7 @@ display:Button({
 })
 ```
 
-When no `parent` is supplied, `BacktrackUI.new` parents the menu to the local player's `PlayerGui`. Pass `parent` to host the GUI elsewhere. `toggleKey` accepts a Roblox `Enum.KeyCode`.
+When no `parent` is supplied, `BacktrackUI.new` uses the executor's `gethui`/`get_hidden_gui` container when available, then falls back to the local player's `PlayerGui`. Pass `parent` to host the GUI elsewhere. `toggleKey` accepts a Roblox `Enum.KeyCode`.
 
 The [example client](example.client.lua) loads the public library directly from GitHub with `loadstring` and demonstrates the source UI arrangement. Its callbacks are inert examples.
 
@@ -79,7 +79,7 @@ The [example client](example.client.lua) loads the public library directly from 
 - Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
-- Source-sized detached utility panels, a draggable navigation dock with square icon buttons and open-state indicators, watermark, and notifications. Dock buttons toggle independent panels; each panel can also be closed from its title bar.
+- Source-sized detached utility panels, a draggable navigation dock with square icon buttons whose tint indicates each window's open state, pixel cursor, keybind list, watermark, and notifications. Each dock button toggles its own independent ScreenGui; each window can also be closed from its title bar.
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.

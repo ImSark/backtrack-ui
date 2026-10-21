@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.6"
+BacktrackUI.Version = "1.5.7"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -48,6 +48,7 @@ local Players = getService("Players")
 local UserInputService = getService("UserInputService")
 local TweenService = getService("TweenService")
 local RunService = getService("RunService")
+local getHiddenGui = gethui or get_hidden_gui
 local GuiThemes = setmetatable({}, { __mode = "k" })
 local cursorBindingCounter = 0
 
@@ -252,6 +253,38 @@ local function connect(window, signal, callback)
 	return connection
 end
 
+local function makeResizable(window, frame)
+	local handle = create("TextButton", {
+		Name = "ResizeHandle",
+		Position = UDim2.new(1, -10, 1, -10),
+		Size = UDim2.fromOffset(10, 10),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 100,
+	}, frame)
+	local startPosition, startSize
+	connect(window, handle.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			startPosition = input.Position
+			startSize = frame.Size
+		end
+	end)
+	connect(window, UserInputService.InputChanged, function(input)
+		if startPosition and startSize and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - startPosition
+			frame.Size = UDim2.fromOffset(math.max(180, startSize.X.Offset + delta.X), math.max(140, startSize.Y.Offset + delta.Y))
+		end
+	end)
+	connect(window, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			startPosition, startSize = nil, nil
+		end
+	end)
+	return handle
+end
+
 local function invoke(callback, ...)
 	if type(callback) ~= "function" then
 		return
@@ -310,8 +343,14 @@ function BacktrackUI.new(options)
 	local player = Players.LocalPlayer
 	local parent = options.parent
 	if not parent then
-		assert(player, "BacktrackUI.new requires options.parent outside a LocalPlayer context")
-		parent = player:WaitForChild("PlayerGui")
+		if type(getHiddenGui) == "function" then
+			local ok, hiddenGui = pcall(getHiddenGui)
+			if ok then parent = hiddenGui end
+		end
+		if not parent then
+			assert(player, "BacktrackUI.new requires options.parent outside a LocalPlayer context")
+			parent = player:WaitForChild("PlayerGui")
+		end
 	end
 
 	local self = setmetatable({
@@ -332,6 +371,9 @@ function BacktrackUI.new(options)
 		_cursorRestoreState = nil,
 		_cursorStepName = "BacktrackUI_MouseUnlock_" .. tostring(cursorBindingCounter),
 		_cursorRenderBound = false,
+		_menuVisible = true,
+		_visibilitySnapshot = nil,
+		_nextDisplayOrder = (options.displayOrder or 100) + 1,
 		_options = options,
 	}, BacktrackUI)
 
@@ -414,18 +456,23 @@ function BacktrackUI.new(options)
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -7, 0, 5),
-		Size = UDim2.fromOffset(15, 14),
+		Size = UDim2.fromOffset(0, 0),
+		AutomaticSize = Enum.AutomaticSize.XY,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Font = Enum.Font.Legacy,
 		Text = "X",
 		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		TextColor3 = self.Theme.text,
-		ZIndex = 5,
-	}, self.Header)
+		ZIndex = 100,
+	}, self.Outer)
 	create("UIStroke", {}, self.CloseButton)
-	self.CloseButton.Activated:Connect(function() self:SetVisible(false) end)
+	self.CloseButton.Activated:Connect(function()
+		self.Gui.Enabled = false
+		self:_syncCursor()
+	end)
 
 	self.PageOutline = create("Frame", {
 		Name = "SectionOutline",
@@ -497,11 +544,13 @@ function BacktrackUI.new(options)
 		ClipsDescendants = true,
 	}, pageInline)
 	gradient(self.TabPages, self.Theme.contrastTop, self.Theme.contrastBottom)
+	makeResizable(self, self.Outer)
 
 	connect(self, self.Outer:GetPropertyChangedSignal("Visible"), function()
 		self:_syncCursor()
 	end)
 	connect(self, self.Gui:GetPropertyChangedSignal("Enabled"), function()
+		if not self.Gui.Enabled then self:_closePopup() end
 		self:_syncCursor()
 	end)
 	self:_syncCursor()
@@ -518,6 +567,8 @@ function BacktrackUI:_makeDrag()
 	connect(self, self.Header.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			self._draggingWindow = true
+			self._nextDisplayOrder = self._nextDisplayOrder + 1
+			self.Gui.DisplayOrder = self._nextDisplayOrder
 			startPosition = self.Outer.Position
 			startInput = input.Position
 		end
@@ -580,6 +631,7 @@ end
 
 function BacktrackUI:_openPopup(anchor, width, height, builder)
 	self:_closePopup()
+	local popupGui = anchor:FindFirstAncestorOfClass("ScreenGui") or self.Gui
 	local catcher = create("TextButton", {
 		Name = "PopupCatcher",
 		Text = "",
@@ -587,7 +639,7 @@ function BacktrackUI:_openPopup(anchor, width, height, builder)
 		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
 		ZIndex = 80,
-	}, self.Gui)
+	}, popupGui)
 	catcher.MouseButton1Click:Connect(function()
 		self:_closePopup()
 	end)
@@ -608,7 +660,7 @@ function BacktrackUI:_openPopup(anchor, width, height, builder)
 		BorderSizePixel = 0,
 		ZIndex = 90,
 		ClipsDescendants = true,
-	}, self.Gui)
+	}, popupGui)
 	corner(frame, 3)
 	stroke(frame, self.Theme.border, 1)
 	self._popup = { catcher = catcher, frame = frame }
@@ -666,8 +718,30 @@ end
 
 function BacktrackUI:_setVisible(visible)
 	visible = visible ~= false
-	self.Gui.Enabled = visible
-	self.Outer.Visible = visible
+	if visible then
+		local snapshot = self._visibilitySnapshot
+		self._menuVisible = true
+		self.Gui.Enabled = snapshot == nil or snapshot.main == true
+		self.Outer.Visible = true
+		for _, panel in ipairs(self._panels) do
+			panel.Gui.Enabled = snapshot ~= nil and snapshot.panels[panel] == true
+		end
+		self._visibilitySnapshot = nil
+		if self.Dock then self.Dock:SetVisible(true) end
+	else
+		if not self._menuVisible then return end
+		self:_closePopup()
+		local snapshot = { main = self.Gui.Enabled, panels = {} }
+		for _, panel in ipairs(self._panels) do
+			snapshot.panels[panel] = panel.Gui.Enabled
+		end
+		self._visibilitySnapshot = snapshot
+		self._menuVisible = false
+		self.Gui.Enabled = false
+		for _, panel in ipairs(self._panels) do panel.Gui.Enabled = false end
+		if self.Dock then self.Dock:SetVisible(false) end
+	end
+	self:_syncCursor()
 end
 
 function BacktrackUI:_restoreCursor()
@@ -675,6 +749,7 @@ function BacktrackUI:_restoreCursor()
 		pcall(function() RunService:UnbindFromRenderStep(self._cursorStepName) end)
 		self._cursorRenderBound = false
 	end
+	if self.Pointer then self.Pointer.Visible = false end
 	local previous = self._cursorRestoreState
 	if not previous then return end
 	self._cursorRestoreState = nil
@@ -682,8 +757,30 @@ function BacktrackUI:_restoreCursor()
 	pcall(function() UserInputService.MouseIconEnabled = previous.mouseIconEnabled end)
 end
 
+function BacktrackUI:_hasOpenWindow()
+	if not self._menuVisible then return false end
+	if self.Gui and self.Gui.Enabled and self.Outer and self.Outer.Visible then return true end
+	for _, panel in ipairs(self._panels) do
+		if panel.Gui and panel.Gui.Enabled then return true end
+	end
+	return false
+end
+
+function BacktrackUI:_refreshPointer()
+	local visible = self._pointerEnabled == true and self.Pointer ~= nil and self.Pointer.Image ~= "" and self:_hasOpenWindow()
+	if self.Pointer then
+		self.Pointer.Visible = visible
+		if visible then
+			local position = UserInputService:GetMouseLocation()
+			self.Pointer.Position = UDim2.fromOffset(position.X, position.Y)
+		end
+	end
+	return visible
+end
+
 function BacktrackUI:_syncCursor()
-	local isOpen = self.Gui and self.Gui.Enabled and self.Outer and self.Outer.Visible
+	local isOpen = self:_hasOpenWindow()
+	local pointerVisible = self:_refreshPointer()
 	if not isOpen then
 		self:_restoreCursor()
 		return
@@ -700,15 +797,16 @@ function BacktrackUI:_syncCursor()
 	end
 
 	pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-	pcall(function() UserInputService.MouseIconEnabled = true end)
+	pcall(function() UserInputService.MouseIconEnabled = not pointerVisible end)
 	if not self._cursorRenderBound then
 		local bound = pcall(function()
 			RunService:BindToRenderStep(self._cursorStepName, Enum.RenderPriority.Last.Value + 1, function()
-				if self._destroyed or not self.Gui or not self.Gui.Enabled or not self.Outer or not self.Outer.Visible then
-					return
-				end
+				if self._destroyed then return end
+				local hasOpenWindow = self:_hasOpenWindow()
+				if not hasOpenWindow then self:_refreshPointer(); return end
+				local activePointer = self:_refreshPointer()
 				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-				UserInputService.MouseIconEnabled = true
+				UserInputService.MouseIconEnabled = not activePointer
 			end)
 		end)
 		self._cursorRenderBound = bound
@@ -721,24 +819,30 @@ function BacktrackUI:SetTheme(overrides)
 	local nextTheme = mergeTheme(overrides, self.Theme)
 	for key, value in pairs(nextTheme) do self.Theme[key] = value end
 	local properties = { "BackgroundColor3", "TextColor3", "TextStrokeColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
-	for _, object in ipairs(self.Gui:GetDescendants()) do
-		if previous.fontFace ~= nextTheme.fontFace and (object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")) then
-			if nextTheme.fontFace then
-				pcall(function() object.FontFace = nextTheme.fontFace end)
-			else
-				pcall(function() object.Font = Enum.Font.Legacy end)
+	local themeGuis = { self.Gui }
+	if self.OverlayGui then table.insert(themeGuis, self.OverlayGui) end
+	for _, panel in ipairs(self._panels) do table.insert(themeGuis, panel.Gui) end
+	for _, gui in ipairs(themeGuis) do
+		GuiThemes[gui] = self.Theme
+		for _, object in ipairs(gui:GetDescendants()) do
+			if previous.fontFace ~= nextTheme.fontFace and (object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")) then
+				if nextTheme.fontFace then
+					pcall(function() object.FontFace = nextTheme.fontFace end)
+				else
+					pcall(function() object.Font = Enum.Font.Legacy end)
+				end
 			end
-		end
-		if object:IsA("UIGradient") and object.Name == "ThemeGradient" then
-			object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
-		end
-		for key, oldColor in pairs(previous) do
-			local newColor = nextTheme[key]
-			if oldColor ~= newColor then
-				if object:IsA("UIStroke") and object.Color == oldColor then object.Color = newColor end
-				for _, property in ipairs(properties) do
-					local ok, current = pcall(function() return object[property] end)
-					if ok and current == oldColor then pcall(function() object[property] = newColor end) end
+			if object:IsA("UIGradient") and object.Name == "ThemeGradient" then
+				object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
+			end
+			for key, oldColor in pairs(previous) do
+				local newColor = nextTheme[key]
+				if oldColor ~= newColor then
+					if object:IsA("UIStroke") and object.Color == oldColor then object.Color = newColor end
+					for _, property in ipairs(properties) do
+						local ok, current = pcall(function() return object[property] end)
+						if ok and current == oldColor then pcall(function() object[property] = newColor end) end
+					end
 				end
 			end
 		end
@@ -751,7 +855,7 @@ function BacktrackUI:SetVisible(visible)
 end
 
 function BacktrackUI:Toggle()
-	local visible = not (self.Gui.Enabled and self.Outer.Visible)
+	local visible = not self._menuVisible
 	self:_setVisible(visible)
 	return visible
 end
@@ -853,6 +957,9 @@ function BacktrackUI:AddTooltip(target, text)
 	local function close()
 		if moveConnection then
 			moveConnection:Disconnect()
+			for index, connection in ipairs(self._connections) do
+				if connection == moveConnection then table.remove(self._connections, index); break end
+			end
 			moveConnection = nil
 		end
 		if tooltip then
@@ -874,7 +981,7 @@ function BacktrackUI:AddTooltip(target, text)
 			BackgroundColor3 = self.Theme.surface,
 			BorderSizePixel = 0,
 			ZIndex = 75,
-		}, self.Gui)
+		}, target:FindFirstAncestorOfClass("ScreenGui") or self.Gui)
 		corner(tooltip, 3)
 		stroke(tooltip, self.Theme.border, 1)
 		local tipText = label(tooltip, text, self.Theme, {
@@ -901,9 +1008,208 @@ function BacktrackUI:AddTooltip(target, text)
 	return close
 end
 
+function BacktrackUI:_getOverlayGui()
+	if self.OverlayGui and self.OverlayGui.Parent then return self.OverlayGui end
+	self.OverlayGui = create("ScreenGui", {
+		Name = self.Gui.Name .. "_Overlay",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = self._options.overlayDisplayOrder or 9999999,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, self.Gui.Parent)
+	GuiThemes[self.OverlayGui] = self.Theme
+	return self.OverlayGui
+end
+
+function BacktrackUI:CreatePointer(options)
+	options = options or {}
+	if self.Pointer and self.Pointer.Parent then return self.PointerHandle end
+	local position = UserInputService:GetMouseLocation()
+	self._pointerEnabled = options.enabled ~= false
+	self.Pointer = create("ImageLabel", {
+		Name = "BacktrackPointer",
+		Image = options.image or self.Images.pointer or "",
+		ImageColor3 = self.Theme.accent,
+		ResampleMode = Enum.ResamplerMode.Pixelated,
+		Position = UDim2.fromOffset(position.X, position.Y),
+		Size = options.size or UDim2.fromOffset(14, 14),
+		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 999999999,
+	}, self:_getOverlayGui())
+	connect(self, UserInputService.InputChanged, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then self:_refreshPointer() end
+	end)
+	local handle = { Object = self.Pointer }
+	function handle:SetEnabled(enabled) self._window:SetPointerEnabled(enabled) end
+	function handle:Destroy()
+		self._window:SetPointerEnabled(false)
+		if self.Object and self.Object.Parent then self.Object:Destroy() end
+		self._window.Pointer = nil
+	end
+	handle._window = self
+	self.PointerHandle = handle
+	self:_syncCursor()
+	return handle
+end
+
+function BacktrackUI:SetPointerEnabled(enabled)
+	self._pointerEnabled = enabled ~= false
+	self:_syncCursor()
+	return self._pointerEnabled
+end
+
+function BacktrackUI:CreateKeybindList(options)
+	options = options or {}
+	local frame = create("Frame", {
+		Name = "KeybindList",
+		Position = options.position or UDim2.fromOffset(50, 269),
+		Size = options.size or UDim2.fromOffset(200, 25),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+		Visible = options.visible == true,
+		Active = true,
+	}, self:_getOverlayGui())
+	local glowImage = self.Images.glow4 or self.Images.glow
+	if glowImage then
+		create("ImageLabel", {
+			Name = "KeybindListGlow",
+			Position = UDim2.fromOffset(-20, -20),
+			Size = UDim2.new(1, 40, 1, 40),
+			BackgroundTransparency = 1,
+			Image = glowImage,
+			ImageColor3 = self.Theme.glow,
+			ImageTransparency = 0.8,
+			ScaleType = Enum.ScaleType.Slice,
+			SliceCenter = Rect.new(21, 21, 79, 79),
+			ZIndex = 0,
+		}, frame)
+	end
+	local inline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+	}, frame)
+	local outline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+	}, inline)
+	local surface = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ClipsDescendants = false,
+	}, outline)
+	gradient(surface, self.Theme.contrastTop, self.Theme.contrastBottom)
+	create("Frame", {
+		Name = "AccentBar",
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+	}, surface)
+	local title = label(surface, "Keybinds", self.Theme, {
+		name = "KeybindsTitle",
+		size = UDim2.new(1, 0, 1, 0),
+		textSize = 12,
+		align = Enum.TextXAlignment.Center,
+		color = self.Theme.text,
+		truncate = true,
+	})
+	create("UIStroke", { LineJoinMode = Enum.LineJoinMode.Miter }, title)
+	local listOuter = create("Frame", {
+		Name = "KeybindRowsOutline",
+		Position = UDim2.new(0, -2, 1, 1),
+		Size = UDim2.new(1, 4, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+	}, surface)
+	local listInline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+	}, listOuter)
+	local listSurface = create("Frame", {
+		Name = "KeybindRows",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+	}, listInline)
+	gradient(listSurface, self.Theme.contrastTop, self.Theme.contrastBottom)
+	create("UIListLayout", { Padding = UDim.new(0, -1), SortOrder = Enum.SortOrder.LayoutOrder }, listSurface)
+	create("UIPadding", { PaddingBottom = UDim.new(0, 4), PaddingLeft = UDim.new(0, 5) }, listSurface)
+	local dragStart, positionStart
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragStart, positionStart = input.Position, frame.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if dragStart and positionStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(positionStart.X.Scale, positionStart.X.Offset + delta.X, positionStart.Y.Scale, positionStart.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
+	end)
+	makeResizable(self, frame)
+	local handle = { Object = frame, Rows = listSurface, _window = self }
+	function handle:SetVisible(visible) frame.Visible = visible ~= false end
+	function handle:Refresh()
+		for _, child in ipairs(listSurface:GetChildren()) do
+			if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then child:Destroy() end
+		end
+		for _, bind in ipairs(self._window._keybinds) do
+			if bind.Name ~= "UI Bind" and bind.key and bind.active then
+				local row = create("Frame", {
+					Name = "KeybindRow",
+					Size = UDim2.new(1, -5, 0, 16),
+					BackgroundTransparency = 1,
+					LayoutOrder = #listSurface:GetChildren(),
+				}, listSurface)
+				label(row, bind.Name, self._window.Theme, { size = UDim2.new(1, -55, 1, 0), textSize = 12 })
+				label(row, keyName(bind.key), self._window.Theme, {
+					position = UDim2.new(1, -50, 0, 0),
+					size = UDim2.fromOffset(50, 16),
+					textSize = 12,
+					align = Enum.TextXAlignment.Right,
+				})
+			end
+		end
+	end
+	function handle:Destroy()
+		if self._window._keybindList == self then self._window._keybindList = nil end
+		if frame.Parent then frame:Destroy() end
+	end
+	self._keybindList = handle
+	handle:Refresh()
+	return handle
+end
+
 function BacktrackUI:CreatePanel(title, options)
 	options = options or {}
-	local panel = { _window = self, _rows = {}, Name = title or "Panel", Image = options.image }
+	self._nextDisplayOrder = self._nextDisplayOrder + 1
+	local safeName = tostring(options.name or title or "Panel"):gsub("[^%w_%-]", "_")
+	local panelGui = create("ScreenGui", {
+		Name = self.Gui.Name .. "_" .. safeName .. "_Gui",
+		Enabled = options.visible ~= false,
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = options.displayOrder or self._nextDisplayOrder,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, options.parent or self.Gui.Parent)
+	GuiThemes[panelGui] = self.Theme
+	local panel = { _window = self, _rows = {}, Name = title or "Panel", Image = options.image, Gui = panelGui }
 	local frame = create("Frame", {
 		Name = options.name or "UtilityPanel",
 		Position = options.position or UDim2.fromOffset(24, 100),
@@ -911,8 +1217,12 @@ function BacktrackUI:CreatePanel(title, options)
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		ClipsDescendants = false,
-	}, self.Gui)
-	frame.Visible = options.visible ~= false
+		Active = true,
+	}, panelGui)
+	connect(self, panelGui:GetPropertyChangedSignal("Enabled"), function()
+		if not panelGui.Enabled then self:_closePopup() end
+		self:_syncCursor()
+	end)
 	local glowImage = self.Images.glow4 or self.Images.glow
 	if glowImage then
 		create("ImageLabel", {
@@ -980,19 +1290,21 @@ function BacktrackUI:CreatePanel(title, options)
 	local close = create("TextButton", {
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -4, 0, 2),
-		Size = UDim2.fromOffset(13, 13),
+		Position = UDim2.new(1, -7, 0, 5),
+		Size = UDim2.fromOffset(0, 0),
+		AutomaticSize = Enum.AutomaticSize.XY,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Font = Enum.Font.Legacy,
 		Text = "X",
-		TextSize = 11,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		TextColor3 = self.Theme.text,
-		ZIndex = 5,
-	}, inner)
+		ZIndex = 100,
+	}, frame)
 	create("UIStroke", {}, close)
-	close.Activated:Connect(function() frame.Visible = false end)
+	close.Activated:Connect(function() panelGui.Enabled = false end)
 	local content = create("ScrollingFrame", {
 		Name = "PanelContent",
 		Position = UDim2.fromOffset(5, 5),
@@ -1008,6 +1320,7 @@ function BacktrackUI:CreatePanel(title, options)
 	local start, inputStart
 	connect(self, bar.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			panel:BringToFront()
 			start, inputStart = frame.Position, input.Position
 		end
 	end)
@@ -1022,6 +1335,12 @@ function BacktrackUI:CreatePanel(title, options)
 			start = nil
 		end
 	end)
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			panel:BringToFront()
+		end
+	end)
+	makeResizable(self, frame)
 
 	function panel:AddLabel(text)
 		local row = label(content, text, self._window.Theme, { size = UDim2.new(1, -8, 0, 20), position = UDim2.fromOffset(4, 0), wrapped = true })
@@ -1030,6 +1349,7 @@ function BacktrackUI:CreatePanel(title, options)
 	end
 	function panel:AddSection(name)
 		local section = createSection(self._window, content, name or "Section", "PanelSection_" .. tostring(#self._rows + 1), math.max(120, self.Frame.Size.Y.Offset - 36))
+		section.Gui = panelGui
 		section.Frame.Size = UDim2.new(1, -8, 0, math.max(120, self.Frame.Size.Y.Offset - 36))
 		section.Frame.LayoutOrder = #self._rows + 1
 		table.insert(self._rows, section.Frame)
@@ -1047,7 +1367,7 @@ function BacktrackUI:CreatePanel(title, options)
 			Padding = UDim.new(0, 4),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}, frame)
-		return setmetatable({ _window = self._window, Frame = frame, _sectionCount = 0 }, Column)
+		return setmetatable({ _window = self._window, _gui = panelGui, Frame = frame, _sectionCount = 0 }, Column)
 	end
 	function panel:AddButton(text, callback)
 		local row = button(content, text, self._window.Theme, { size = UDim2.new(1, -8, 0, 25), position = UDim2.fromOffset(4, 0) })
@@ -1073,14 +1393,20 @@ function BacktrackUI:CreatePanel(title, options)
 		return list
 	end
 	function panel:SetVisible(visible)
-		frame.Visible = visible ~= false
+		panelGui.Enabled = visible ~= false
+		if panelGui.Enabled then self:BringToFront() end
 	end
 	function panel:Toggle()
-		frame.Visible = not frame.Visible
-		return frame.Visible
+		panelGui.Enabled = not panelGui.Enabled
+		if panelGui.Enabled then self:BringToFront() end
+		return panelGui.Enabled
+	end
+	function panel:BringToFront()
+		self._window._nextDisplayOrder = self._window._nextDisplayOrder + 1
+		panelGui.DisplayOrder = self._window._nextDisplayOrder
 	end
 	function panel:Destroy()
-		if frame.Parent then frame:Destroy() end
+		if panelGui.Parent then panelGui:Destroy() end
 		for index, item in ipairs(self._window._panels) do
 			if item == self then table.remove(self._window._panels, index) break end
 		end
@@ -1093,21 +1419,60 @@ end
 
 function BacktrackUI:CreateWatermark(text, options)
 	options = options or {}
-	local badge = create("TextLabel", {
+	local badge = create("Frame", {
 		Name = "Watermark",
-		Position = options.position or UDim2.fromOffset(16, 16),
-		Size = UDim2.fromOffset(180, 24),
+		Position = options.position or UDim2.fromOffset(31, 0),
+		Size = UDim2.fromOffset(50, 29),
 		AutomaticSize = Enum.AutomaticSize.X,
-		BackgroundColor3 = self.Theme.surface,
+		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
-		Font = Enum.Font.Legacy,
-		Text = "  " .. tostring(text or "Backtrack UI") .. "  ",
-		TextColor3 = self.Theme.text,
-		TextSize = 11,
-		TextXAlignment = Enum.TextXAlignment.Left,
-	}, self.Gui)
-	corner(badge, 3)
-	stroke(badge, self.Theme.border, 1)
+		Active = true,
+	}, self:_getOverlayGui())
+	local outerInline = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+	}, badge)
+	local outerSurface = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+	}, outerInline)
+	gradient(outerSurface, self.Theme.contrastTop, self.Theme.contrastBottom)
+	local innerInline = create("Frame", {
+		Position = UDim2.fromOffset(3, 3),
+		Size = UDim2.new(1, -6, 1, -6),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+	}, outerSurface)
+	local innerSurface = create("Frame", {
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+	}, innerInline)
+	gradient(innerSurface, self.Theme.contrastTop, self.Theme.contrastBottom)
+	local accent = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = self.Theme.accent,
+		BorderSizePixel = 0,
+	}, innerSurface)
+	gradient(accent, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167))
+	create("UIPadding", {
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 9),
+	}, accent)
+	local textLabel = label(accent, text or "backtrack.tech", self.Theme, {
+		name = "WatermarkText",
+		position = UDim2.new(0, 0, 0, 9),
+		size = UDim2.new(0, 0, 0, 14),
+		textSize = 12,
+		color = self.Theme.text,
+		automaticSize = Enum.AutomaticSize.X,
+	})
+	create("UIStroke", { LineJoinMode = Enum.LineJoinMode.Miter }, textLabel)
 	local start, inputStart
 	connect(self, badge.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1125,7 +1490,8 @@ function BacktrackUI:CreateWatermark(text, options)
 	end)
 	return {
 		Object = badge,
-		SetText = function(_, value) badge.Text = "  " .. tostring(value or "") .. "  " end,
+		Text = textLabel,
+		SetText = function(_, value) textLabel.Text = tostring(value or "") end,
 		SetVisible = function(_, visible) badge.Visible = visible ~= false end,
 		Destroy = function() badge:Destroy() end,
 	}
@@ -1134,7 +1500,7 @@ end
 function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
-	local dock = { _window = self, _buttons = {}, _buttonConnections = {} }
+	local dock = { _window = self, _buttons = {}, _buttonConnections = {}, _buttonTooltipCloses = {} }
 	local frame = create("Frame", {
 		Name = "BacktrackDock",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -1144,7 +1510,7 @@ function BacktrackUI:CreateDock(options)
 		BorderSizePixel = 0,
 		Active = true,
 		ZIndex = 10,
-	}, self.Gui)
+	}, self:_getOverlayGui())
 	dock.Frame = frame
 	local glowImage = self.Images.glow4 or self.Images.glow
 	if glowImage then
@@ -1185,17 +1551,21 @@ function BacktrackUI:CreateDock(options)
 	}, face)
 	local holder = create("Frame", {
 		Name = "DockButtons",
-		Position = UDim2.fromOffset(4, 6),
-		Size = UDim2.new(1, -8, 1, -10),
+		Position = UDim2.new(),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		ZIndex = 14,
 	}, face)
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Padding = UDim.new(0, 5),
+	}, holder)
+	create("UIPadding", {
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 4),
 	}, holder)
 	local dragStart, positionStart
 	connect(self, frame.InputBegan, function(input)
@@ -1214,58 +1584,65 @@ function BacktrackUI:CreateDock(options)
 	end)
 	function dock:AddButton(name, icon, callback, isOpen, stateSignals)
 		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
-		local item = button(holder, "", self._window.Theme, {
-			name = "DockButton",
-			size = UDim2.fromOffset(25, 25),
-			background = self._window.Theme.background,
-			border = self._window.Theme.inline,
-			zIndex = 15,
-		})
-		item.Text = ""
-		item.TextTransparency = 1
-		item.TextStrokeTransparency = 1
-		create("UIAspectRatioConstraint", {
-			AspectRatio = 1,
-			DominantAxis = Enum.DominantAxis.Height,
+		local item = create("TextButton", {
+			Name = "DockButton",
+			Size = UDim2.fromOffset(25, 25),
+			BackgroundColor3 = self._window.Theme.inline,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			ZIndex = 15,
+		}, holder)
+		local outline = create("Frame", {
+			Name = "Outline",
+			Position = UDim2.fromOffset(1, 1),
+			Size = UDim2.new(1, -2, 1, -2),
+			BackgroundColor3 = self._window.Theme.outline,
+			BorderSizePixel = 0,
+			ZIndex = 16,
 		}, item)
-		item:SetAttribute("DockButtonName", tostring(name or ""))
-		local indicator = create("Frame", {
-			Name = "OpenIndicator",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -1),
-			Size = UDim2.fromOffset(6, 2),
-			BackgroundColor3 = self._window.Theme.muted,
-			BackgroundTransparency = 0.35,
+		local iconFace = create("Frame", {
+			Name = "Face",
+			Position = UDim2.fromOffset(1, 1),
+			Size = UDim2.new(1, -2, 1, -2),
+			BackgroundColor3 = self._window.Theme.contrastBottom,
 			BorderSizePixel = 0,
 			ZIndex = 17,
-		}, item)
-		local function refreshIndicator()
+		}, outline)
+		gradient(iconFace, self._window.Theme.contrastBottom, self._window.Theme.contrastTop)
+		item:SetAttribute("DockButtonName", tostring(name or ""))
+		local iconLabel
+		if image then
+			iconLabel = create("ImageLabel", {
+				Name = "Icon",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Image = image,
+				ImageColor3 = self._window.Theme.inline,
+				ResampleMode = Enum.ResamplerMode.Pixelated,
+				ZIndex = 18,
+			}, iconFace)
+			create("UIPadding", {
+				PaddingTop = UDim.new(0, 3),
+				PaddingBottom = UDim.new(0, 3),
+				PaddingLeft = UDim.new(0, 3),
+				PaddingRight = UDim.new(0, 3),
+			}, iconFace)
+		end
+		local function refreshIcon()
 			local open = false
 			if type(isOpen) == "function" then
 				local ok, value = pcall(isOpen)
 				open = ok and value == true
 			end
-			indicator.Size = UDim2.fromOffset(open and 14 or 6, 2)
-			indicator.BackgroundColor3 = open and self._window.Theme.accent or self._window.Theme.muted
-			indicator.BackgroundTransparency = open and 0 or 0.35
+			if iconLabel then iconLabel.ImageColor3 = open and self._window.Theme.accent or self._window.Theme.inline end
 		end
-		refreshIndicator()
+		refreshIcon()
 		for _, signal in ipairs(stateSignals or {}) do
-			local ok, connection = pcall(function() return signal:Connect(refreshIndicator) end)
+			local ok, connection = pcall(function() return signal:Connect(refreshIcon) end)
 			if ok and connection then table.insert(self._buttonConnections, connection) end
 		end
-		if image then
-			create("ImageLabel", {
-				Name = "Icon",
-				Position = UDim2.fromOffset(3, 3),
-				Size = UDim2.new(1, -6, 1, -6),
-				BackgroundTransparency = 1,
-				Image = image,
-				ImageColor3 = self._window.Theme.accent,
-				ResampleMode = Enum.ResamplerMode.Pixelated,
-				ZIndex = 16,
-			}, item)
-		end
+		table.insert(self._buttonTooltipCloses, self._window:AddTooltip(item, tostring(name or "")))
 		item.LayoutOrder = #self._buttons + 1
 		item.Activated:Connect(function()
 			if callback then
@@ -1274,32 +1651,47 @@ function BacktrackUI:CreateDock(options)
 				self._window.Gui.Enabled = true
 				self._window.Outer.Visible = true
 			end
-			refreshIndicator()
+			refreshIcon()
 		end)
 		table.insert(self._buttons, item)
 		if not options.size then
-			frame.Size = UDim2.fromOffset(math.max(157, 37 + #self._buttons * 30), 39)
+			local count = #self._buttons
+			frame.Size = UDim2.fromOffset(math.max(157, 8 + count * 25 + math.max(0, count - 1) * 5), 39)
 		end
 		return item
 	end
 	function dock:Refresh()
 		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
 		table.clear(self._buttonConnections)
-		for _, item in ipairs(self._buttons) do item:Destroy() end
+		for _, closeTooltip in ipairs(self._buttonTooltipCloses) do closeTooltip() end
+		table.clear(self._buttonTooltipCloses)
+		for _, item in ipairs(self._buttons) do
+			item:Destroy()
+		end
 		table.clear(self._buttons)
-		self:AddButton("Main", options.icon or "main", function() self._window:Toggle() end,
+		self:AddButton("Main", options.icon or "main", function()
+			local mainGui = self._window.Gui
+			mainGui.Enabled = not mainGui.Enabled
+			if mainGui.Enabled then
+				self._window.Outer.Visible = true
+				self._window._nextDisplayOrder = self._window._nextDisplayOrder + 1
+				mainGui.DisplayOrder = self._window._nextDisplayOrder
+			end
+		end,
 			function() return self._window.Gui.Enabled and self._window.Outer.Visible end,
 			{ self._window.Gui:GetPropertyChangedSignal("Enabled"), self._window.Outer:GetPropertyChangedSignal("Visible") })
 		for _, panel in ipairs(self._window._panels) do
 			self:AddButton(panel.Name, panel.Image, function() panel:Toggle() end,
-				function() return panel.Frame.Visible end,
-				{ panel.Frame:GetPropertyChangedSignal("Visible") })
+				function() return panel.Gui.Enabled end,
+				{ panel.Gui:GetPropertyChangedSignal("Enabled") })
 		end
 	end
 	function dock:SetVisible(visible) frame.Visible = visible ~= false end
 	function dock:Destroy()
 		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
 		table.clear(self._buttonConnections)
+		for _, closeTooltip in ipairs(self._buttonTooltipCloses) do closeTooltip() end
+		table.clear(self._buttonTooltipCloses)
 		if frame.Parent then frame:Destroy() end
 	end
 	dock:Refresh()
@@ -1317,6 +1709,11 @@ function BacktrackUI:Destroy()
 		connection:Disconnect()
 	end
 	table.clear(self._connections)
+	for _, panel in ipairs(self._panels) do
+		if panel.Gui and panel.Gui.Parent then panel.Gui:Destroy() end
+	end
+	table.clear(self._panels)
+	if self.OverlayGui and self.OverlayGui.Parent then self.OverlayGui:Destroy() end
 	if self.Gui then self.Gui:Destroy() end
 end
 
@@ -1418,7 +1815,7 @@ function Tab:Column(index)
 			Padding = UDim.new(0, 4),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}, frame)
-		local column = setmetatable({ _tab = self, Frame = frame }, Column)
+		local column = setmetatable({ _tab = self, _gui = self._window.Gui, Frame = frame }, Column)
 		table.insert(self._columns, column)
 	end
 	self:_layoutColumns()
@@ -1507,6 +1904,7 @@ end
 createSection = function(window, parent, title, objectName, fixedHeight)
 	local section = setmetatable({
 		_window = window,
+		Gui = window.Gui,
 		Name = title or "Section",
 		_controlCount = 0,
 	}, Section)
@@ -1563,7 +1961,9 @@ function Column:AddSection(title)
 	if type(title) == "table" then title = title.name or title.title end
 	local window = self._window or self._tab._window
 	self._sectionCount = (self._sectionCount or 0) + 1
-	return createSection(window, self.Frame, title, "Section_" .. tostring(self._sectionCount))
+	local section = createSection(window, self.Frame, title, "Section_" .. tostring(self._sectionCount))
+	section.Gui = self._gui or window.Gui
+	return section
 end
 
 function Column:Column()
@@ -1578,7 +1978,7 @@ function Column:Column()
 		Padding = UDim.new(0, 4),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, frame)
-	return setmetatable({ _window = self._window or self._tab._window, Frame = frame, _sectionCount = 0 }, Column)
+	return setmetatable({ _window = self._window or self._tab._window, _gui = self._gui, Frame = frame, _sectionCount = 0 }, Column)
 end
 
 function Column:MultiSection(options)
@@ -1586,7 +1986,7 @@ function Column:MultiSection(options)
 	options = options or {}
 	local names = options.names or { "Section A", "Section B" }
 	local window = self._window or self._tab._window
-	local multi = setmetatable({ _window = window, Name = options.name or "MultiSection", Sections = {}, Tabs = {} }, MultiSection)
+	local multi = setmetatable({ _window = window, _gui = self._gui or window.Gui, Name = options.name or "MultiSection", Sections = {}, Tabs = {} }, MultiSection)
 	local frame = create("Frame", {
 		Name = "MultiSection",
 		Size = UDim2.new(1, 0, 1, 0),
@@ -1669,6 +2069,7 @@ function Column:MultiSection(options)
 		window._sectionIndex = (window._sectionIndex or 0) + 1
 		local section = setmetatable({
 			_window = window,
+			Gui = self._gui or window.Gui,
 			Name = name,
 			_controlCount = 0,
 			Frame = frame,
@@ -2262,6 +2663,7 @@ function Section:_keybind(options, right, owner)
 		if control.mode == "Always" then control.active = true elseif control.mode == "Never" then control.active = false end
 		window._values[control.Flag] = { key = control.key, mode = control.mode, active = control.active }
 		render()
+		if window._keybindList then window._keybindList:Refresh() end
 		if not silent then invoke(control.Callback, control.active, control.key, control.mode) end
 		return control.key
 	end
@@ -2271,6 +2673,7 @@ function Section:_keybind(options, right, owner)
 	function control:SetActive(value, silent)
 		control.active = control.mode == "Always" or (control.mode ~= "Never" and value == true)
 		window._values[control.Flag] = { key = control.key, mode = control.mode, active = control.active }
+		if window._keybindList then window._keybindList:Refresh() end
 		if not silent then invoke(control.Callback, control.active, control.key, control.mode) end
 		return control.active
 	end
@@ -2295,6 +2698,7 @@ function Section:_keybind(options, right, owner)
 	end)
 	table.insert(window._keybinds, control)
 	render()
+	if window._keybindList then window._keybindList:Refresh() end
 	control._right = right
 	control.Button = bindButton
 	return control
@@ -2682,6 +3086,7 @@ function Section:Configuration(options, builder, owner)
 
 	local window = self._window
 	local theme = window.Theme
+	local popupGui = owner._row:FindFirstAncestorOfClass("ScreenGui") or window.Gui
 	local icon = create("TextButton", {
 		Name = "ConfigurationButton",
 		Size = UDim2.fromOffset(14, 14),
@@ -2724,7 +3129,7 @@ function Section:Configuration(options, builder, owner)
 		Visible = false,
 		ZIndex = 90,
 		ClipsDescendants = true,
-	}, window.Gui)
+	}, popupGui)
 	local accent = create("Frame", {
 		Name = "Accent",
 		Position = UDim2.fromOffset(1, 1),
@@ -2765,6 +3170,7 @@ function Section:Configuration(options, builder, owner)
 	create("UIPadding", { PaddingBottom = UDim.new(0, 6) }, content)
 	local nested = setmetatable({
 		_window = window,
+		Gui = popupGui,
 		Name = options.name or "Configuration",
 		Content = content,
 		Frame = popup,
@@ -2811,7 +3217,7 @@ function Section:Configuration(options, builder, owner)
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 			ZIndex = 80,
-		}, window.Gui)
+		}, popupGui)
 		catcher.Activated:Connect(function() window:_closePopup() end)
 		window._popup = {
 			catcher = catcher,
@@ -2874,6 +3280,7 @@ end
 BacktrackUI.unload = BacktrackUI.Destroy
 BacktrackUI.set_theme = BacktrackUI.SetTheme
 BacktrackUI.create_dock = BacktrackUI.CreateDock
+BacktrackUI.create_keybind_list = BacktrackUI.CreateKeybindList
 Tab.column = Tab.AddColumn
 Tab.section = Tab.AddSection
 Column.section = Column.AddSection
