@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.4.1"
+BacktrackUI.Version = "1.5.0"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -37,7 +37,9 @@ BacktrackUI.Theme = {
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local GuiThemes = setmetatable({}, { __mode = "k" })
+local cursorBindingCounter = 0
 
 local function mergeTheme(overrides, base)
 	local theme = {}
@@ -294,6 +296,7 @@ end
 
 function BacktrackUI.new(options)
 	options = options or {}
+	cursorBindingCounter = cursorBindingCounter + 1
 	local player = Players.LocalPlayer
 	local parent = options.parent
 	if not parent then
@@ -317,6 +320,8 @@ function BacktrackUI.new(options)
 		_popup = nil,
 		_draggingWindow = false,
 		_cursorRestoreState = nil,
+		_cursorStepName = "BacktrackUI_MouseUnlock_" .. tostring(cursorBindingCounter),
+		_cursorRenderBound = false,
 		_options = options,
 	}, BacktrackUI)
 
@@ -653,6 +658,10 @@ function BacktrackUI:_setVisible(visible)
 end
 
 function BacktrackUI:_restoreCursor()
+	if self._cursorRenderBound then
+		pcall(function() RunService:UnbindFromRenderStep(self._cursorStepName) end)
+		self._cursorRenderBound = false
+	end
 	local previous = self._cursorRestoreState
 	if not previous then return end
 	self._cursorRestoreState = nil
@@ -679,6 +688,18 @@ function BacktrackUI:_syncCursor()
 
 	pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
 	pcall(function() UserInputService.MouseIconEnabled = true end)
+	if not self._cursorRenderBound then
+		local bound = pcall(function()
+			RunService:BindToRenderStep(self._cursorStepName, Enum.RenderPriority.Last.Value + 1, function()
+				if self._destroyed or not self.Gui or not self.Gui.Enabled or not self.Outer or not self.Outer.Visible then
+					return
+				end
+				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+				UserInputService.MouseIconEnabled = true
+			end)
+		end)
+		self._cursorRenderBound = bound
+	end
 end
 
 function BacktrackUI:SetTheme(overrides)

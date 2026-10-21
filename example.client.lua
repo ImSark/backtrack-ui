@@ -2,7 +2,7 @@
 -- This is a visual demo of the original menu layout. All callbacks are inert
 -- examples; the library does not implement the source script's game behavior.
 local BacktrackUI = loadstring(game:HttpGet(
-	"https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua?v=1.4.1"
+	"https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua?v=1.5.0"
 ))()
 
 local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
