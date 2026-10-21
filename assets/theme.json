@@ -1,0 +1,17 @@
+{
+  "name": "Backtrack Dark",
+  "colors": {
+    "outline": "#0A0A0A",
+    "inline": "#222222",
+    "accent": "#FF627F",
+    "highContrast": "#0D0D0D",
+    "lowContrast": "#101010",
+    "text": "#E0E0E0",
+    "textOutline": "#000000",
+    "glow": "#FF627F",
+    "warning": "#F7D762",
+    "information": "#9A87FE",
+    "fail": "#FF7581",
+    "success": "#7AFF75"
+  }
+}
