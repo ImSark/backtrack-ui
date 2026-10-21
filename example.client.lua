@@ -556,12 +556,18 @@ local function logConsole(message, level, color)
 	print("[BacktrackUI]", message)
 end
 
-local configTab = menu:AddTab("Config")
+local configPanel = menu:CreatePanel("Config", {
+	name = "ConfigWindow",
+	image = "configurations",
+	position = UDim2.new(0, 24, 0, 100),
+	size = UDim2.fromOffset(370, 440),
+	visible = false,
+})
 local profileList
 local profileName
 local profiles = { "Default", "Example" }
-local profilesSection = configTab:Column():AddSection("Profiles")
-local profileActions = configTab:Column():AddSection("Profile Actions")
+local profilesSection = configPanel:AddColumn():AddSection("Profiles")
+local profileActions = profilesSection
 profileName = profileActions:Textbox({ name = "Profile Name", default = "Default", placeholder = "Enter a profile name", max = 32 })
 profileList = profilesSection:List({
 	name = "Saved Profiles",
@@ -595,9 +601,16 @@ profileActions:Button({ name = "Delete Demo Profile", callback = function()
 	logConsole("Removed demo profile: " .. name, "CONFIG")
 end })
 
-local themeTab = menu:AddTab("Theme")
-local themePresets = themeTab:Column():AddSection("Presets")
-local themeColors = themeTab:Column():AddSection("Colors")
+local themePanel = menu:CreatePanel("Theme", {
+	name = "ThemeWindow",
+	image = "style",
+	position = UDim2.new(1, -394, 0, 100),
+	size = UDim2.fromOffset(370, 470),
+	visible = false,
+})
+local themeSection = themePanel:AddColumn():AddSection("Appearance")
+local themePresets = themeSection
+local themeColors = themeSection
 local presets = {
 	Rose = { accent = Color3.fromRGB(255, 98, 127), glow = Color3.fromRGB(255, 98, 127) },
 	Violet = { accent = Color3.fromRGB(154, 135, 254), glow = Color3.fromRGB(154, 135, 254) },
@@ -628,9 +641,15 @@ themeColors:Colorpicker({ name = "Text", color = menu.Theme.text, callback = fun
 	logConsole("Updated text color", "THEME")
 end })
 
-local consoleTab = menu:AddTab("Console")
-local consoleSection = consoleTab:Column():AddSection("Output")
-local consoleActions = consoleTab:Column():AddSection("Input")
+local consolePanel = menu:CreatePanel("Console", {
+	name = "ConsoleWindow",
+	image = "output",
+	position = UDim2.new(0, 24, 1, -420),
+	size = UDim2.fromOffset(440, 400),
+	visible = false,
+})
+local consoleSection = consolePanel:AddColumn():AddSection("Output")
+local consoleActions = consoleSection
 consoleOutput = consoleSection:Output({ height = 270 })
 consoleOutput:Add("Backtrack UI loaded", "INFO", Color3.fromRGB(154, 135, 254))
 consoleOutput:Add("Console ready", "SUCCESS", Color3.fromRGB(122, 255, 117))
@@ -648,16 +667,4 @@ consoleActions:Button({ name = "Clear Console", callback = function()
 end })
 
 local dock = menu:CreateDock({ icon = "main" })
-dock:AddButton("Config", "configurations", function()
-	menu:SetVisible(true)
-	configTab:SetActive(true)
-end)
-dock:AddButton("Theme", "style", function()
-	menu:SetVisible(true)
-	themeTab:SetActive(true)
-end)
-dock:AddButton("Console", "output", function()
-	menu:SetVisible(true)
-	consoleTab:SetActive(true)
-end)
 menu:CreateWatermark("backtrack.tech")

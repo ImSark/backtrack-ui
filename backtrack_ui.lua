@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.5"
+BacktrackUI.Version = "1.5.6"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -912,6 +912,7 @@ function BacktrackUI:CreatePanel(title, options)
 		BorderSizePixel = 0,
 		ClipsDescendants = false,
 	}, self.Gui)
+	frame.Visible = options.visible ~= false
 	local glowImage = self.Images.glow4 or self.Images.glow
 	if glowImage then
 		create("ImageLabel", {
@@ -1133,7 +1134,7 @@ end
 function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
-	local dock = { _window = self, _buttons = {} }
+	local dock = { _window = self, _buttons = {}, _buttonConnections = {} }
 	local frame = create("Frame", {
 		Name = "BacktrackDock",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -1211,7 +1212,7 @@ function BacktrackUI:CreateDock(options)
 	connect(self, UserInputService.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
 	end)
-	function dock:AddButton(name, icon, callback)
+	function dock:AddButton(name, icon, callback, isOpen, stateSignals)
 		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
 		local item = button(holder, "", self._window.Theme, {
 			name = "DockButton",
@@ -1228,6 +1229,31 @@ function BacktrackUI:CreateDock(options)
 			DominantAxis = Enum.DominantAxis.Height,
 		}, item)
 		item:SetAttribute("DockButtonName", tostring(name or ""))
+		local indicator = create("Frame", {
+			Name = "OpenIndicator",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -1),
+			Size = UDim2.fromOffset(6, 2),
+			BackgroundColor3 = self._window.Theme.muted,
+			BackgroundTransparency = 0.35,
+			BorderSizePixel = 0,
+			ZIndex = 17,
+		}, item)
+		local function refreshIndicator()
+			local open = false
+			if type(isOpen) == "function" then
+				local ok, value = pcall(isOpen)
+				open = ok and value == true
+			end
+			indicator.Size = UDim2.fromOffset(open and 14 or 6, 2)
+			indicator.BackgroundColor3 = open and self._window.Theme.accent or self._window.Theme.muted
+			indicator.BackgroundTransparency = open and 0 or 0.35
+		end
+		refreshIndicator()
+		for _, signal in ipairs(stateSignals or {}) do
+			local ok, connection = pcall(function() return signal:Connect(refreshIndicator) end)
+			if ok and connection then table.insert(self._buttonConnections, connection) end
+		end
 		if image then
 			create("ImageLabel", {
 				Name = "Icon",
@@ -1248,23 +1274,34 @@ function BacktrackUI:CreateDock(options)
 				self._window.Gui.Enabled = true
 				self._window.Outer.Visible = true
 			end
+			refreshIndicator()
 		end)
 		table.insert(self._buttons, item)
+		if not options.size then
+			frame.Size = UDim2.fromOffset(math.max(157, 37 + #self._buttons * 30), 39)
+		end
 		return item
 	end
 	function dock:Refresh()
+		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
+		table.clear(self._buttonConnections)
 		for _, item in ipairs(self._buttons) do item:Destroy() end
 		table.clear(self._buttons)
-		self:AddButton("Main", options.icon or "main", function()
-			self._window.Gui.Enabled = true
-			self._window.Outer.Visible = true
-		end)
+		self:AddButton("Main", options.icon or "main", function() self._window:Toggle() end,
+			function() return self._window.Gui.Enabled and self._window.Outer.Visible end,
+			{ self._window.Gui:GetPropertyChangedSignal("Enabled"), self._window.Outer:GetPropertyChangedSignal("Visible") })
 		for _, panel in ipairs(self._window._panels) do
-			self:AddButton(panel.Name, panel.Image, function() panel:Toggle() end)
+			self:AddButton(panel.Name, panel.Image, function() panel:Toggle() end,
+				function() return panel.Frame.Visible end,
+				{ panel.Frame:GetPropertyChangedSignal("Visible") })
 		end
 	end
 	function dock:SetVisible(visible) frame.Visible = visible ~= false end
-	function dock:Destroy() if frame.Parent then frame:Destroy() end end
+	function dock:Destroy()
+		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
+		table.clear(self._buttonConnections)
+		if frame.Parent then frame:Destroy() end
+	end
 	dock:Refresh()
 	self.Dock = dock
 	return dock
@@ -1273,6 +1310,7 @@ end
 function BacktrackUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
+	if self.Dock then self.Dock:Destroy(); self.Dock = nil end
 	self:_restoreCursor()
 	self:_closePopup()
 	for _, connection in ipairs(self._connections) do
