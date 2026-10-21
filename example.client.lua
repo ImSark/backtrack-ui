@@ -5,9 +5,6 @@ local BacktrackUI = loadstring(game:HttpGet(
 	"https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/backtrack_ui.lua?v=1.5.4"
 ))()
 
-local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
-local showCompanionPanels = viewport.X >= 1858 and viewport.Y >= 866
-
 -- Executors with file APIs can load the original pixel icons and glow directly
 -- from this public repo. Other environments keep the built-in text fallback.
 local images = {}
@@ -77,8 +74,8 @@ end
 local menu = BacktrackUI.new({
 	title = "backtrack.tech - " .. os.date("%b %d %Y"),
 	name = "BacktrackUI",
-	anchorPoint = showCompanionPanels and Vector2.zero or Vector2.new(0.5, 0.5),
-	position = showCompanionPanels and UDim2.new(0.5, -398, 0.5, -433) or UDim2.fromScale(0.5, 0.5),
+	anchorPoint = Vector2.new(0.5, 0.5),
+	position = UDim2.fromScale(0.5, 0.5),
 	toggleKey = Enum.KeyCode.Delete,
 	images = images,
 	theme = fontFace and { fontFace = fontFace } or nil,
@@ -511,103 +508,102 @@ populate(crosshair, {
 	}),
 })
 
-if showCompanionPanels then
-	local style = menu:CreatePanel("Style", {
-		name = "StylePanel",
-		image = "style",
-		size = UDim2.fromOffset(394, 631),
-		position = UDim2.new(0.5, 208, 0.5, -433),
-	})
-	local styleColumn = style:AddColumn()
-	local theme = styleColumn:AddSection("Theme")
-	local function colorRow(name, color, flag, alpha)
-		local control = theme:Label({ name = name })
-		control:Colorpicker({ name = name, color = color, alpha = alpha, flag = flag })
-		return control
-	end
-	colorRow("Menu Accent", Color3.fromRGB(255, 98, 127), "accent")
-	local contrast = theme:Label({ name = "Contrast" })
-	contrast:Colorpicker({ name = "Low", color = Color3.fromRGB(16, 16, 16), flag = "low_contrast" })
-	contrast:Colorpicker({ name = "High", color = Color3.fromRGB(13, 13, 13), flag = "high_contrast" })
-	colorRow("Inline", Color3.fromRGB(34, 34, 34), "inline")
-	colorRow("Outline", Color3.fromRGB(10, 10, 10), "outline")
-	local textColor = theme:Label({ name = "Text Color" })
-	textColor:Colorpicker({ name = "Text Color", color = Color3.fromRGB(224, 224, 224), flag = "text_color" })
-	textColor:Colorpicker({ name = "Text Outline Color", color = Color3.fromRGB(0, 0, 0), flag = "text_outline" })
-	colorRow("Glow", Color3.fromRGB(255, 98, 127), "glow", 0.2)
-	theme:Dropdown({ name = "Tweening Style", items = { "Linear", "Sine", "Back", "Bounce", "Circular", "Cubic", "Elastic", "Exponential", "Quad", "Quart", "Quint" }, default = "Circular" })
-	theme:Dropdown({ name = "Tweening Direction", items = { "In", "Out", "InOut" }, default = "InOut" })
-	theme:Slider({ name = "Tweening Time", min = 0.05, max = 1, step = 0.01, default = 0.15, suffix = "s" })
-	previewToggle(theme, "Pointer Design", true)
-
-	local accessibility, otherStyle = styleColumn:MultiSection({ names = { "Accessibility", "Other" } })
-	local uiBind = accessibility:Label({ name = "UI Bind" })
-	uiBind:Keybind({ key = Enum.KeyCode.End })
-	previewToggle(accessibility, "Keybind List")
-	local watermark = previewToggle(accessibility, "Watermark", true)
-	watermark:Configuration({ name = "Watermark Options" }, function(config)
-		config:Dropdown({ name = "Watermark Elements", multi = true, items = { "Version", "FPS", "Ping", "UID", "Game", "Date", "Time" }, default = { "Version", "FPS", "Ping", "Game", "Date" } })
-		config:Textbox({ name = "Custom Watermark", placeholder = "backtrack.tech", max = 20 })
-	end)
-	previewToggle(accessibility, "UI Management", true)
-	previewToggle(accessibility, "Aero Snap", true)
-	accessibility:Splitter()
-	accessibility:Dropdown({ name = "Click Sound Style", items = { "Default", "Pride", "Halloween", "Wood", "Experience" }, default = "Default" })
-	accessibility:Slider({ name = "Click Sound Volume", min = 0, max = 10, step = 0.1, default = 1 })
-	otherStyle:Slider({ name = "Animation Frequency", min = 15, max = 240, default = 240, suffix = "hz" })
-	otherStyle:Slider({ name = "Animation Speed", min = 0.5, max = 3, step = 0.1, default = 1 })
-	otherStyle:Slider({ name = "Blur Size", min = 0, max = 56, default = 20 })
-	otherStyle:Slider({ name = "FPS Cap", min = 30, max = 1000, default = 240, suffix = "hz" })
-	otherStyle:ButtonHolder({ name = "Server IDs" })
-	otherStyle:Button({ name = "Copy JobId", callback = function() print("Copy JobId") end })
-	otherStyle:Button({ name = "Copy PlaceId", callback = function() print("Copy PlaceId") end })
-	otherStyle:Button({ name = "Copy Join Script", callback = function() print("Copy Join Script") end })
-	otherStyle:ButtonHolder({ name = "Notifications" })
-	otherStyle:Button({ name = "Test Notification", callback = function() menu:Notify("The quick brown fox jumps over the lazy dog", 5) end })
-	otherStyle:Button({ name = "Test Flashing Notification", callback = function() menu:Notify("The quick brown fox jumps over the lazy dog", 5, "warning") end })
-	otherStyle:ButtonHolder({ name = "Session" })
-	otherStyle:Button({ name = "Rejoin Server", callback = function() print("Rejoin Server") end })
-
-	local configurationPanel = menu:CreatePanel("Configurations", {
-		name = "ConfigurationsPanel",
-		image = "configurations",
-		size = UDim2.fromOffset(324, 438),
-		position = UDim2.new(0.5, 604, 0.5, -433),
-	})
-	local configurations = configurationPanel:AddColumn():AddSection("Options")
-	configurations:List({ name = "Configurations", height = 160, items = { "Default", "Example" } })
-	configurations:Textbox({ placeholder = "Type here...", max = 30 })
-	configurations:ButtonHolder({ name = "Configuration Actions" })
-	configurations:Button({ name = "Create", callback = function() print("Add your configuration callback here") end })
-	configurations:Button({ name = "Delete", callback = function() print("Add your configuration callback here") end })
-	configurations:Button({ name = "Load", callback = function() print("Add your configuration callback here") end })
-	configurations:Button({ name = "Save", callback = function() print("Add your configuration callback here") end })
-	configurations:ButtonHolder({ name = "Management Actions" })
-	configurations:Button({ name = "Refresh Configurations", callback = function() print("Add your configuration callback here") end })
-	configurations:Button({ name = "Unload Configuration", callback = function() print("Add your configuration callback here") end })
-	configurationPanel:SetVisible(false)
-
-	local playerPanel = menu:CreatePanel("Playerlist", {
-		name = "PlayerlistPanel",
-		image = "playerlist",
-		size = UDim2.fromOffset(529, 445),
-		position = UDim2.new(0.5, -929, 0.5, -433),
-	})
-	local playerSection = playerPanel:AddColumn():AddSection("Playerlist")
-	playerSection:List({ name = "Players", height = 340, items = { "Local player", "Example player", "Another player" } })
-
-	local outputPanel = menu:CreatePanel("Output", {
-		name = "OutputPanel",
-		image = "output",
-		size = UDim2.fromOffset(529, 267),
-		position = UDim2.new(0.5, -929, 0.5, 14),
-	})
-	local outputSection = outputPanel:AddColumn():AddSection("Output")
-	local output = outputSection:Output({ height = 160 })
-	output:Add("Backtrack UI loaded", "INFO", Color3.fromRGB(154, 135, 254))
-	output:Add("Interface preview ready", "SUCCESS", Color3.fromRGB(122, 255, 117))
-	outputSection:Button({ name = "Clear Output", callback = function() output:Clear() end })
+local consoleOutput
+local function logConsole(message, level, color)
+	if consoleOutput then consoleOutput:Add(message, level, color) end
+	print("[BacktrackUI]", message)
 end
+
+local configTab = menu:AddTab("Config")
+local profileList
+local profileName
+local profiles = { "Default", "Example" }
+local profilesSection = configTab:Column():AddSection("Profiles")
+local profileActions = configTab:Column():AddSection("Profile Actions")
+profileName = profileActions:Textbox({ name = "Profile Name", default = "Default", placeholder = "Enter a profile name", max = 32 })
+profileList = profilesSection:List({
+	name = "Saved Profiles",
+	height = 230,
+	items = profiles,
+	callback = function(value)
+		profileName:Set(tostring(value), true)
+		logConsole("Selected profile: " .. tostring(value), "CONFIG")
+	end,
+})
+profileActions:ButtonHolder({ name = "Actions" })
+profileActions:Button({ name = "Create Demo Profile", callback = function()
+	local name = profileName:Get()
+	if name == "" then return end
+	table.insert(profiles, name)
+	profileList:SetItems(profiles)
+	logConsole("Created demo profile: " .. name, "CONFIG")
+end })
+profileActions:Button({ name = "Save Demo Profile", callback = function()
+	logConsole("Save callback ready for profile: " .. profileName:Get(), "CONFIG")
+end })
+profileActions:Button({ name = "Load Demo Profile", callback = function()
+	logConsole("Load callback ready for profile: " .. profileName:Get(), "CONFIG")
+end })
+profileActions:Button({ name = "Delete Demo Profile", callback = function()
+	local name = profileName:Get()
+	for index, profile in ipairs(profiles) do
+		if profile == name then table.remove(profiles, index); break end
+	end
+	profileList:SetItems(profiles)
+	logConsole("Removed demo profile: " .. name, "CONFIG")
+end })
+
+local themeTab = menu:AddTab("Theme")
+local themePresets = themeTab:Column():AddSection("Presets")
+local themeColors = themeTab:Column():AddSection("Colors")
+local presets = {
+	Rose = { accent = Color3.fromRGB(255, 98, 127), glow = Color3.fromRGB(255, 98, 127) },
+	Violet = { accent = Color3.fromRGB(154, 135, 254), glow = Color3.fromRGB(154, 135, 254) },
+	Ocean = { accent = Color3.fromRGB(83, 190, 222), glow = Color3.fromRGB(83, 190, 222) },
+}
+themePresets:Dropdown({
+	name = "Color Preset",
+	items = { "Rose", "Violet", "Ocean" },
+	default = "Rose",
+	callback = function(name)
+		if presets[name] then
+			menu:SetTheme(presets[name])
+			logConsole("Applied " .. name .. " theme", "THEME")
+		end
+	end,
+})
+themePresets:Label({ name = "Changes apply immediately" })
+themeColors:Colorpicker({ name = "Accent", color = menu.Theme.accent, callback = function(color)
+	menu:SetTheme({ accent = color, glow = color })
+	logConsole("Updated accent color", "THEME")
+end })
+themeColors:Colorpicker({ name = "Background", color = menu.Theme.background, callback = function(color)
+	menu:SetTheme({ background = color, surface = color })
+	logConsole("Updated background color", "THEME")
+end })
+themeColors:Colorpicker({ name = "Text", color = menu.Theme.text, callback = function(color)
+	menu:SetTheme({ text = color })
+	logConsole("Updated text color", "THEME")
+end })
+
+local consoleTab = menu:AddTab("Console")
+local consoleSection = consoleTab:Column():AddSection("Output")
+local consoleActions = consoleTab:Column():AddSection("Input")
+consoleOutput = consoleSection:Output({ height = 270 })
+consoleOutput:Add("Backtrack UI loaded", "INFO", Color3.fromRGB(154, 135, 254))
+consoleOutput:Add("Console ready", "SUCCESS", Color3.fromRGB(122, 255, 117))
+local consoleMessage = consoleActions:Textbox({ name = "Message", placeholder = "Type a message to log", max = 80 })
+consoleActions:ButtonHolder({ name = "Console Actions" })
+consoleActions:Button({ name = "Write Message", callback = function()
+	local message = consoleMessage:Get()
+	if message ~= "" then logConsole(message, "USER") end
+end })
+consoleActions:Button({ name = "Write Sample", callback = function()
+	logConsole("This is a sample console entry", "INFO", Color3.fromRGB(154, 135, 254))
+end })
+consoleActions:Button({ name = "Clear Console", callback = function()
+	consoleOutput:Clear()
+end })
 
 menu:CreateDock({ icon = "main" })
 menu:CreateWatermark("backtrack.tech")
