@@ -8,13 +8,18 @@ local BacktrackUI = loadstring(game:HttpGet(libraryUrl .. "?t=" .. libraryCacheB
 -- Executors with file APIs can load the original pixel icons and glow directly
 -- from this public repo. Other environments keep the built-in text fallback.
 local images = {}
-local fontFace
 local customAsset = getcustomasset or getsynasset
 if type(writefile) == "function" and type(customAsset) == "function" then
 	local folder = "backtrack_ui_assets"
 	if type(isfolder) == "function" and type(makefolder) == "function" then
 		local ok, exists = pcall(isfolder, folder)
 		if not ok or not exists then pcall(makefolder, folder) end
+	end
+	local deleteAsset = delfile or deletefile
+	if type(deleteAsset) == "function" then
+		for _, name in ipairs({ "fs-tahoma-8px.ttf", "Tahoma.font" }) do
+			pcall(deleteAsset, folder .. "/" .. name)
+		end
 	end
 
 	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "scroll", "pointer", "logo", "transparency", "glow4" }) do
@@ -35,40 +40,6 @@ if type(writefile) == "function" and type(customAsset) == "function" then
 		local ok, content = pcall(customAsset, path)
 		if ok and type(content) == "string" then images[name] = content end
 	end
-
-	-- The source uses its bundled bitmap Tahoma font. Executors can register
-	-- the same font with a local .font descriptor for FontFace.
-	local fontPath = folder .. "/fs-tahoma-8px.ttf"
-	local fontExists = false
-	if type(isfile) == "function" then
-		local ok, result = pcall(isfile, fontPath)
-		fontExists = ok and result == true
-	end
-	if not fontExists then
-		local ok, bytes = pcall(function()
-			return game:HttpGet("https://raw.githubusercontent.com/backtrack-tech/backtrack.tech/main/fonts/fs-tahoma-8px.ttf")
-		end)
-		if ok and type(bytes) == "string" and #bytes > 0 then pcall(writefile, fontPath, bytes) end
-	end
-	local fontAssetOk, fontAsset = pcall(customAsset, fontPath)
-	if fontAssetOk and type(fontAsset) == "string" then
-		local descriptorPath = folder .. "/Tahoma.font"
-		local http = game:GetService("HttpService")
-		local descriptor = http:JSONEncode({
-			name = "BacktrackTahoma",
-			faces = { { name = "Normal", weight = 400, style = "Normal", assetId = fontAsset } },
-		})
-		local descriptorWritten = pcall(writefile, descriptorPath, descriptor)
-		if descriptorWritten then
-			local faceAssetOk, faceAsset = pcall(customAsset, descriptorPath)
-			if faceAssetOk and type(faceAsset) == "string" then
-				local faceOk, registeredFace = pcall(function()
-					return Font.new(faceAsset, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				end)
-				if faceOk then fontFace = registeredFace end
-			end
-		end
-	end
 end
 
 local menu = BacktrackUI.new({
@@ -78,7 +49,6 @@ local menu = BacktrackUI.new({
 	position = UDim2.fromScale(0.5, 0.5),
 	toggleKey = Enum.KeyCode.Delete,
 	images = images,
-	theme = fontFace and { fontFace = fontFace } or nil,
 })
 
 local function previewToggle(section, name, default)

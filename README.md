@@ -2,11 +2,11 @@
 
 A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example reproduces the original `Combat`, `Players`, `Misc`, and `Visuals` tabs and adds `Config`, `Theme`, and `Console` tabs with matching dock shortcuts, demo profile controls, live theme presets and color pickers, and a scrollable console. It also keeps the 604×631 window, square outlines, rose accent, dark blue-grey gradient, compact controls, and dock.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))` and, when executor file APIs are available, downloads the original PNG icons, glow, and Tahoma font into a local asset cache. It registers Tahoma as a `FontFace`, matching the source menu; other environments fall back to `Enum.Font.Legacy`. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. A custom `FontFace` can be supplied as `theme.fontFace`.
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. When executor file APIs are available, it retains only the PNG UI images in a local asset cache. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. A custom `FontFace` can be supplied as `theme.fontFace`.
 
 ## Executor loader
 
-Use this same command each time. Its runtime cache-buster fetches the latest example and library files from `main`:
+Use this same command each time. The unique query string fetches fresh example and library code from `main`; only the PNG UI images are cached locally:
 
 ```lua
 local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/example.client.lua"
