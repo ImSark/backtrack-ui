@@ -225,7 +225,6 @@ local function sourceActionButton(parent, text, theme, options)
 		ZIndex = control.ZIndex + 1,
 	}, accent)
 	gradient(fill, Color3.fromRGB(255, 255, 255), Color3.fromRGB(117, 117, 117))
-	control.Label = title
 	control.MouseEnter:Connect(function()
 		TweenService:Create(fill, TweenInfo.new(0.12), { BackgroundTransparency = 0.15 }):Play()
 	end)
@@ -2058,7 +2057,7 @@ function Section:Button(options)
 	end
 	local control = { _section = self, _row = row, Name = name, Flag = options.flag }
 	control.Button = click
-	local title = click.Label
+	local title = click:FindFirstChild("Title", true)
 	local confirmUntil = 0
 	local confirmToken = 0
 	local function restoreTitle()
