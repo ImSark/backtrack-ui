@@ -605,7 +605,7 @@ consoleActions:Button({ name = "Clear Console", callback = function()
 	consoleOutput:Clear()
 end })
 
-local dock = menu:CreateDock({ icon = "main" })
+local dock = menu:CreateDock({ icon = "main", labels = true })
 dock:AddButton("Config", "configurations", function()
 	menu:SetVisible(true)
 	configTab:SetActive(true)

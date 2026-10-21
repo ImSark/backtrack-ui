@@ -1133,12 +1133,12 @@ end
 function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
-	local dock = { _window = self, _buttons = {} }
+	local dock = { _window = self, _buttons = {}, _labels = options.labels == true }
 	local frame = create("Frame", {
 		Name = "BacktrackDock",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = options.position or UDim2.new(0.5, 0, 1, -120),
-		Size = options.size or UDim2.fromOffset(157, 39),
+		Size = options.size or UDim2.fromOffset(dock._labels and 242 or 157, 39),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		Active = true,
@@ -1215,15 +1215,18 @@ function BacktrackUI:CreateDock(options)
 		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
 		local glyph = icon
 		if type(icon) == "string" and not image and icon:match("^[%w_%-]+$") then glyph = icon:sub(1, 1) end
-		local item = button(holder, image and "" or (glyph or tostring(name or "?"):sub(1, 1)), self._window.Theme, {
+		local buttonName = tostring(name or "?")
+		local buttonText = self._labels and buttonName or (image and "" or (glyph or buttonName:sub(1, 1)))
+		local buttonWidth = self._labels and math.max(38, #buttonName * 6 + 10) or 25
+		local item = button(holder, buttonText, self._window.Theme, {
 			name = "DockButton",
-			size = UDim2.fromOffset(25, 25),
+			size = UDim2.fromOffset(buttonWidth, 25),
 			background = self._window.Theme.background,
 			border = self._window.Theme.inline,
-			textSize = 13,
+			textSize = self._labels and 11 or 13,
 			zIndex = 15,
 		})
-		if image then
+		if image and not self._labels then
 			create("ImageLabel", {
 				Name = "Icon",
 				Position = UDim2.fromOffset(3, 3),
