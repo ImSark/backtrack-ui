@@ -1,4 +1,7 @@
-local BacktrackUI = require(script.Parent.backtrack_ui)
+-- Requires an environment that supports game:HttpGet and loadstring.
+local BacktrackUI = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/ImSark/backtrack-ui/main/backtrack_ui.lua"
+	))()
 
 local menu = BacktrackUI.new({
 	title = "Backtrack UI Example",
