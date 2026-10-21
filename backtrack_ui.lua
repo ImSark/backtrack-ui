@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.3"
+BacktrackUI.Version = "1.5.4"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -425,7 +425,7 @@ function BacktrackUI.new(options)
 		ZIndex = 5,
 	}, self.Header)
 	create("UIStroke", {}, self.CloseButton)
-	self.CloseButton.Activated:Connect(function() self.Outer.Visible = false end)
+	self.CloseButton.Activated:Connect(function() self:SetVisible(false) end)
 
 	self.PageOutline = create("Frame", {
 		Name = "SectionOutline",
@@ -665,8 +665,9 @@ function BacktrackUI:_registerControl(control, options, initial, setValue)
 end
 
 function BacktrackUI:_setVisible(visible)
-	self.Gui.Enabled = true
-	self.Outer.Visible = visible ~= false
+	visible = visible ~= false
+	self.Gui.Enabled = visible
+	self.Outer.Visible = visible
 end
 
 function BacktrackUI:_restoreCursor()
@@ -750,9 +751,9 @@ function BacktrackUI:SetVisible(visible)
 end
 
 function BacktrackUI:Toggle()
-	self.Gui.Enabled = true
-	self.Outer.Visible = not self.Outer.Visible
-	return self.Outer.Visible
+	local visible = not (self.Gui.Enabled and self.Outer.Visible)
+	self:_setVisible(visible)
+	return visible
 end
 
 function BacktrackUI:SelectTab(tabOrName)
