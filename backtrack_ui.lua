@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.3.0"
+BacktrackUI.Version = "1.4.0"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -317,6 +317,7 @@ function BacktrackUI.new(options)
 		_destroyed = false,
 		_popup = nil,
 		_draggingWindow = false,
+		_cursorRestoreState = nil,
 		_options = options,
 	}, BacktrackUI)
 
@@ -483,6 +484,13 @@ function BacktrackUI.new(options)
 	}, pageInline)
 	gradient(self.TabPages, self.Theme.contrastTop, self.Theme.contrastBottom)
 
+	connect(self, self.Outer:GetPropertyChangedSignal("Visible"), function()
+		self:_syncCursor()
+	end)
+	connect(self, self.Gui:GetPropertyChangedSignal("Enabled"), function()
+		self:_syncCursor()
+	end)
+	self:_syncCursor()
 	self._makeDrag(self)
 	self._installInput(self)
 	return self
@@ -643,6 +651,35 @@ end
 function BacktrackUI:_setVisible(visible)
 	self.Gui.Enabled = true
 	self.Outer.Visible = visible ~= false
+end
+
+function BacktrackUI:_restoreCursor()
+	local previous = self._cursorRestoreState
+	if not previous then return end
+	self._cursorRestoreState = nil
+	pcall(function() UserInputService.MouseBehavior = previous.mouseBehavior end)
+	pcall(function() UserInputService.MouseIconEnabled = previous.mouseIconEnabled end)
+end
+
+function BacktrackUI:_syncCursor()
+	local isOpen = self.Gui and self.Gui.Enabled and self.Outer and self.Outer.Visible
+	if not isOpen then
+		self:_restoreCursor()
+		return
+	end
+
+	if not self._cursorRestoreState then
+		local behaviorOk, mouseBehavior = pcall(function() return UserInputService.MouseBehavior end)
+		local iconOk, mouseIconEnabled = pcall(function() return UserInputService.MouseIconEnabled end)
+		if not behaviorOk or not iconOk then return end
+		self._cursorRestoreState = {
+			mouseBehavior = mouseBehavior,
+			mouseIconEnabled = mouseIconEnabled,
+		}
+	end
+
+	pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+	pcall(function() UserInputService.MouseIconEnabled = true end)
 end
 
 function BacktrackUI:SetTheme(overrides)
@@ -1198,6 +1235,7 @@ end
 function BacktrackUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
+	self:_restoreCursor()
 	self:_closePopup()
 	for _, connection in ipairs(self._connections) do
 		connection:Disconnect()
