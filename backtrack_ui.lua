@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.2"
+BacktrackUI.Version = "1.5.3"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -34,10 +34,20 @@ BacktrackUI.Theme = {
 	warning = Color3.fromRGB(247, 215, 98),
 }
 
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local cloneReference = cloneref or clonereference
+local function getService(name)
+	local service = game:GetService(name)
+	if type(cloneReference) == "function" then
+		local ok, reference = pcall(cloneReference, service)
+		if ok and reference then return reference end
+	end
+	return service
+end
+
+local Players = getService("Players")
+local UserInputService = getService("UserInputService")
+local TweenService = getService("TweenService")
+local RunService = getService("RunService")
 local GuiThemes = setmetatable({}, { __mode = "k" })
 local cursorBindingCounter = 0
 
@@ -317,7 +327,6 @@ function BacktrackUI.new(options)
 		_keybinds = {},
 		_connectionsByName = {},
 		_destroyed = false,
-		_toggleKeyDown = false,
 		_popup = nil,
 		_draggingWindow = false,
 		_cursorRestoreState = nil,
@@ -527,16 +536,6 @@ function BacktrackUI:_makeDrag()
 end
 
 function BacktrackUI:_installInput()
-	local toggleKeyCode
-	local configuredToggleKey = self._options.toggleKey
-	if typeof(configuredToggleKey) == "EnumItem" and configuredToggleKey.EnumType == Enum.KeyCode then
-		toggleKeyCode = configuredToggleKey
-	elseif type(configuredToggleKey) == "string" then
-		local keyName = keyName(configuredToggleKey)
-		local keyOk, keyCode = pcall(function() return Enum.KeyCode[keyName] end)
-		if keyOk then toggleKeyCode = keyCode end
-	end
-
 	connect(self, UserInputService.InputBegan, function(input, processed)
 		if self._destroyed then
 			return
@@ -551,10 +550,9 @@ function BacktrackUI:_installInput()
 		end
 
 		local toggleKeyPressed = self._options.toggleKey and inputMatches(input, self._options.toggleKey)
-		if toggleKeyPressed and not self._toggleKeyDown then
-			self._toggleKeyDown = true
-			local focusOk, focusedTextBox = pcall(function() return UserInputService:GetFocusedTextBox() end)
-			if not focusOk or not focusedTextBox then self:Toggle() end
+		local focusOk, focusedTextBox = pcall(function() return UserInputService:GetFocusedTextBox() end)
+		if toggleKeyPressed and (not focusOk or not focusedTextBox) then
+			self:Toggle()
 		end
 		if processed then
 			return
@@ -572,31 +570,12 @@ function BacktrackUI:_installInput()
 		end
 	end)
 	connect(self, UserInputService.InputEnded, function(input)
-		if self._options.toggleKey and inputMatches(input, self._options.toggleKey) then
-			self._toggleKeyDown = false
-		end
 		for _, bind in ipairs(self._keybinds) do
 			if bind.key and bind.mode == "Hold" and inputMatches(input, bind.key) then
 				bind:SetActive(false)
 			end
 		end
 	end)
-	if toggleKeyCode then
-		connect(self, RunService.RenderStepped, function()
-			if self._destroyed then return end
-			local keyOk, isDown = pcall(function()
-				return UserInputService:IsKeyDown(toggleKeyCode)
-			end)
-			if not keyOk then return end
-			if isDown and not self._toggleKeyDown then
-				self._toggleKeyDown = true
-				local focusOk, focusedTextBox = pcall(function() return UserInputService:GetFocusedTextBox() end)
-				if not focusOk or not focusedTextBox then self:Toggle() end
-			elseif not isDown then
-				self._toggleKeyDown = false
-			end
-		end)
-	end
 end
 
 function BacktrackUI:_openPopup(anchor, width, height, builder)
