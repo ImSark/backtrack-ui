@@ -94,6 +94,24 @@ elseif type(customAsset) ~= "function" then
 	warn("[BacktrackUI] This executor needs getcustomasset or getsynasset to load the original images and Tahoma font.")
 end
 
+-- Clean up the previous executor run so old docks cannot remain layered behind this one.
+local runtimeEnv = _G
+if type(getgenv) == "function" then
+	local envOk, executorEnv = pcall(getgenv)
+	if envOk and type(executorEnv) == "table" then runtimeEnv = executorEnv end
+end
+local previousMenu = runtimeEnv.__BacktrackUIInstance
+if previousMenu then pcall(function() previousMenu:Destroy() end) end
+runtimeEnv.__BacktrackUIInstance = nil
+
+local localPlayer = game:GetService("Players").LocalPlayer
+if localPlayer then
+	local playerGui = localPlayer:FindFirstChildOfClass("PlayerGui") or localPlayer:WaitForChild("PlayerGui")
+	for _, child in ipairs(playerGui:GetChildren()) do
+		if child:IsA("ScreenGui") and child.Name == "BacktrackUI" then child:Destroy() end
+	end
+end
+
 local menu = BacktrackUI.new({
 	title = "backtrack.tech - " .. os.date("%b %d %Y"),
 	name = "BacktrackUI",
@@ -103,6 +121,7 @@ local menu = BacktrackUI.new({
 	images = images,
 	theme = fontFace and { fontFace = fontFace } or nil,
 })
+runtimeEnv.__BacktrackUIInstance = menu
 
 local function previewToggle(section, name, default)
 	local flag = name:lower():gsub("[^%w]+", "_")

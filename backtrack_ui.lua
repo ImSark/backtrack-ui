@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.4"
+BacktrackUI.Version = "1.5.5"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -1213,17 +1213,21 @@ function BacktrackUI:CreateDock(options)
 	end)
 	function dock:AddButton(name, icon, callback)
 		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
-		local glyph = icon
-		if type(icon) == "string" and not image and icon:match("^[%w_%-]+$") then glyph = icon:sub(1, 1) end
-		local buttonName = tostring(name or "?")
-		local item = button(holder, image and "" or (glyph or buttonName:sub(1, 1)), self._window.Theme, {
+		local item = button(holder, "", self._window.Theme, {
 			name = "DockButton",
 			size = UDim2.fromOffset(25, 25),
 			background = self._window.Theme.background,
 			border = self._window.Theme.inline,
-			textSize = 13,
 			zIndex = 15,
 		})
+		item.Text = ""
+		item.TextTransparency = 1
+		item.TextStrokeTransparency = 1
+		create("UIAspectRatioConstraint", {
+			AspectRatio = 1,
+			DominantAxis = Enum.DominantAxis.Height,
+		}, item)
+		item:SetAttribute("DockButtonName", tostring(name or ""))
 		if image then
 			create("ImageLabel", {
 				Name = "Icon",
