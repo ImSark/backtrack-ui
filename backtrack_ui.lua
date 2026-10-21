@@ -1133,12 +1133,12 @@ end
 function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
-	local dock = { _window = self, _buttons = {}, _labels = options.labels == true }
+	local dock = { _window = self, _buttons = {} }
 	local frame = create("Frame", {
 		Name = "BacktrackDock",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = options.position or UDim2.new(0.5, 0, 1, -120),
-		Size = options.size or UDim2.fromOffset(dock._labels and 270 or 157, 39),
+		Size = options.size or UDim2.fromOffset(157, 39),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		Active = true,
@@ -1216,28 +1216,19 @@ function BacktrackUI:CreateDock(options)
 		local glyph = icon
 		if type(icon) == "string" and not image and icon:match("^[%w_%-]+$") then glyph = icon:sub(1, 1) end
 		local buttonName = tostring(name or "?")
-		local buttonText = self._labels and buttonName or (image and "" or (glyph or buttonName:sub(1, 1)))
-		local buttonWidth = self._labels and math.max(44, #buttonName * 6 + 23) or 25
-		local item = button(holder, buttonText, self._window.Theme, {
+		local item = button(holder, image and "" or (glyph or buttonName:sub(1, 1)), self._window.Theme, {
 			name = "DockButton",
-			size = UDim2.fromOffset(buttonWidth, 25),
+			size = UDim2.fromOffset(25, 25),
 			background = self._window.Theme.background,
 			border = self._window.Theme.inline,
-			textSize = self._labels and 11 or 13,
-			align = self._labels and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center,
+			textSize = 13,
 			zIndex = 15,
 		})
-		if self._labels then
-			create("UIPadding", {
-				PaddingLeft = UDim.new(0, image and 20 or 6),
-			}, item)
-		end
 		if image then
-			local iconSize = self._labels and 14 or 19
 			create("ImageLabel", {
 				Name = "Icon",
-				Position = UDim2.new(0, 3, 0.5, -iconSize / 2),
-				Size = UDim2.fromOffset(iconSize, iconSize),
+				Position = UDim2.fromOffset(3, 3),
+				Size = UDim2.new(1, -6, 1, -6),
 				BackgroundTransparency = 1,
 				Image = image,
 				ImageColor3 = self._window.Theme.accent,
@@ -1260,7 +1251,7 @@ function BacktrackUI:CreateDock(options)
 	function dock:Refresh()
 		for _, item in ipairs(self._buttons) do item:Destroy() end
 		table.clear(self._buttons)
-		self:AddButton(self._labels and "Home" or "Main", options.icon or "main", function()
+		self:AddButton("Main", options.icon or "main", function()
 			self._window.Gui.Enabled = true
 			self._window.Outer.Visible = true
 		end)

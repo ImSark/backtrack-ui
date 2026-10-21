@@ -79,7 +79,7 @@ The [example client](example.client.lua) loads the public library directly from 
 - Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
-- Source-sized detached utility panels, a draggable navigation dock with optional readable labels (`menu:CreateDock({ labels = true })`), watermark, and notifications.
+- Source-sized detached utility panels, a draggable navigation dock with square icon buttons, watermark, and notifications.
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
