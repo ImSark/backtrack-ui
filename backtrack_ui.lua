@@ -1138,7 +1138,7 @@ function BacktrackUI:CreateDock(options)
 		Name = "BacktrackDock",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = options.position or UDim2.new(0.5, 0, 1, -120),
-		Size = options.size or UDim2.fromOffset(dock._labels and 242 or 157, 39),
+		Size = options.size or UDim2.fromOffset(dock._labels and 270 or 157, 39),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		Active = true,
@@ -1217,20 +1217,27 @@ function BacktrackUI:CreateDock(options)
 		if type(icon) == "string" and not image and icon:match("^[%w_%-]+$") then glyph = icon:sub(1, 1) end
 		local buttonName = tostring(name or "?")
 		local buttonText = self._labels and buttonName or (image and "" or (glyph or buttonName:sub(1, 1)))
-		local buttonWidth = self._labels and math.max(38, #buttonName * 6 + 10) or 25
+		local buttonWidth = self._labels and math.max(44, #buttonName * 6 + 23) or 25
 		local item = button(holder, buttonText, self._window.Theme, {
 			name = "DockButton",
 			size = UDim2.fromOffset(buttonWidth, 25),
 			background = self._window.Theme.background,
 			border = self._window.Theme.inline,
 			textSize = self._labels and 11 or 13,
+			align = self._labels and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center,
 			zIndex = 15,
 		})
-		if image and not self._labels then
+		if self._labels then
+			create("UIPadding", {
+				PaddingLeft = UDim.new(0, image and 20 or 6),
+			}, item)
+		end
+		if image then
+			local iconSize = self._labels and 14 or 19
 			create("ImageLabel", {
 				Name = "Icon",
-				Position = UDim2.fromOffset(3, 3),
-				Size = UDim2.new(1, -6, 1, -6),
+				Position = UDim2.new(0, 3, 0.5, -iconSize / 2),
+				Size = UDim2.fromOffset(iconSize, iconSize),
 				BackgroundTransparency = 1,
 				Image = image,
 				ImageColor3 = self._window.Theme.accent,
