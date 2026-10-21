@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.0"
+BacktrackUI.Version = "1.5.1"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -539,11 +539,13 @@ function BacktrackUI:_installInput()
 			end
 		end
 
+		local toggleKeyPressed = self._options.toggleKey and inputMatches(input, self._options.toggleKey)
+		local focusedTextBox = UserInputService:GetFocusedTextBox()
+		if toggleKeyPressed and not focusedTextBox then
+			self:Toggle()
+		end
 		if processed then
 			return
-		end
-		if self._options.toggleKey and inputMatches(input, self._options.toggleKey) then
-			self:Toggle()
 		end
 		for _, bind in ipairs(self._keybinds) do
 			if bind.key and inputMatches(input, bind.key) then
