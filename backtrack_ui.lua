@@ -8,8 +8,10 @@
 
 local BacktrackUI = {}
 BacktrackUI.__index = BacktrackUI
+local createSection
+local Column
 
-BacktrackUI.Version = "1.1.0"
+BacktrackUI.Version = "1.2.0"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -35,10 +37,14 @@ BacktrackUI.Theme = {
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local GuiThemes = setmetatable({}, { __mode = "k" })
 
-local function mergeTheme(overrides)
+local function mergeTheme(overrides, base)
 	local theme = {}
 	for key, value in pairs(BacktrackUI.Theme) do
+		theme[key] = value
+	end
+	for key, value in pairs(base or {}) do
 		theme[key] = value
 	end
 	for key, value in pairs(overrides or {}) do
@@ -53,6 +59,17 @@ local function create(className, properties, parent)
 		object[key] = value
 	end
 	object.Parent = parent
+	if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+		local ancestor = parent
+		while ancestor do
+			local theme = GuiThemes[ancestor]
+			if theme then
+				if theme.fontFace then pcall(function() object.FontFace = theme.fontFace end) end
+				break
+			end
+			ancestor = ancestor.Parent
+		end
+	end
 	return object
 end
 
@@ -101,7 +118,7 @@ local function label(parent, text, theme, options)
 		Text = tostring(text or ""),
 		TextColor3 = options.color or theme.text,
 		TextStrokeColor3 = theme.text_outline,
-		TextStrokeTransparency = 0.55,
+		TextStrokeTransparency = 0.3,
 		TextSize = options.textSize or 12,
 		TextXAlignment = options.align or Enum.TextXAlignment.Left,
 		TextYAlignment = options.valign or Enum.TextYAlignment.Center,
@@ -130,7 +147,7 @@ local function button(parent, text, theme, options)
 		Text = tostring(text or ""),
 		TextColor3 = options.color or theme.text,
 		TextStrokeColor3 = theme.text_outline,
-		TextStrokeTransparency = 0.55,
+		TextStrokeTransparency = 0.3,
 		TextSize = options.textSize or 11,
 		TextXAlignment = options.align or Enum.TextXAlignment.Center,
 		ZIndex = options.zIndex or 2,
@@ -242,6 +259,7 @@ function BacktrackUI.new(options)
 		DisplayOrder = options.displayOrder or 100,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, parent)
+	GuiThemes[self.Gui] = self.Theme
 
 	local width = options.width or 604
 	local height = options.height or 631
@@ -303,15 +321,15 @@ function BacktrackUI.new(options)
 	}, self.Body)
 	label(self.Header, options.title or "Backtrack UI", self.Theme, {
 		name = "Title",
-		position = UDim2.fromOffset(3, 1),
-		size = UDim2.new(1, -28, 1, -2),
+		position = UDim2.fromOffset(2, 4),
+		size = UDim2.new(1, -28, 0, 14),
 		textSize = 12,
 		color = self.Theme.accent,
 	})
 	self.CloseButton = create("TextButton", {
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -5, 0, 2),
+		Position = UDim2.new(1, -7, 0, 5),
 		Size = UDim2.fromOffset(15, 14),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -324,28 +342,10 @@ function BacktrackUI.new(options)
 	}, self.Header)
 	self.CloseButton.Activated:Connect(function() self.Outer.Visible = false end)
 
-	self.TabBar = create("Frame", {
-		Name = "Tabs",
-		Position = UDim2.fromOffset(4, 18),
-		Size = UDim2.new(1, -8, 0, 22),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-	}, self.Body)
-	create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 4),
-	}, self.TabBar)
-	create("UIPadding", {
-		PaddingLeft = UDim.new(0, 1),
-		PaddingTop = UDim.new(0, 1),
-		PaddingBottom = UDim.new(0, 1),
-	}, self.TabBar)
 	self.PageOutline = create("Frame", {
 		Name = "SectionOutline",
-		Position = UDim2.fromOffset(3, 40),
-		Size = UDim2.new(1, -6, 1, -44),
+		Position = UDim2.fromOffset(3, 18),
+		Size = UDim2.new(1, -6, 1, -22),
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -358,11 +358,24 @@ function BacktrackUI.new(options)
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 	}, self.PageOutline)
+	self.TabBar = create("Frame", {
+		Name = "Tabs",
+		Position = UDim2.fromOffset(4, 0),
+		Size = UDim2.new(1, -8, 0, 22),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+	}, self.PageInline)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalFlex = Enum.UIFlexAlignment.Fill,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 2),
+	}, self.TabBar)
 
 	self.Pages = create("Frame", {
 		Name = "Pages",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
+		Position = UDim2.fromOffset(0, 19),
+		Size = UDim2.new(1, 0, 1, -19),
 		BackgroundColor3 = self.Theme.contrastTop,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -529,10 +542,17 @@ end
 function BacktrackUI:SetTheme(overrides)
 	local previous = {}
 	for key, value in pairs(self.Theme) do previous[key] = value end
-	local nextTheme = mergeTheme(overrides)
+	local nextTheme = mergeTheme(overrides, self.Theme)
 	for key, value in pairs(nextTheme) do self.Theme[key] = value end
 	local properties = { "BackgroundColor3", "TextColor3", "TextStrokeColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
 	for _, object in ipairs(self.Gui:GetDescendants()) do
+		if previous.fontFace ~= nextTheme.fontFace and (object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")) then
+			if nextTheme.fontFace then
+				pcall(function() object.FontFace = nextTheme.fontFace end)
+			else
+				pcall(function() object.Font = Enum.Font.Legacy end)
+			end
+		end
 		if object:IsA("UIGradient") and object.Name == "ThemeGradient" then
 			object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
 		end
@@ -773,7 +793,7 @@ function BacktrackUI:CreatePanel(title, options)
 		BorderSizePixel = 0,
 		Active = true,
 	}, inner)
-	label(bar, title or "Panel", self.Theme, { position = UDim2.fromOffset(3, 1), size = UDim2.new(1, -23, 1, -2), textSize = 12, color = self.Theme.accent })
+	label(bar, title or "Panel", self.Theme, { position = UDim2.fromOffset(2, 4), size = UDim2.new(1, -23, 0, 14), textSize = 12, color = self.Theme.accent })
 	local close = create("TextButton", {
 		Name = "Close",
 		AnchorPoint = Vector2.new(1, 0),
@@ -795,7 +815,7 @@ function BacktrackUI:CreatePanel(title, options)
 		Size = UDim2.new(1, -10, 1, -10),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 3,
+	ScrollBarThickness = 0,
 		ScrollBarImageColor3 = self.Theme.accent,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -823,6 +843,27 @@ function BacktrackUI:CreatePanel(title, options)
 		local row = label(content, text, self._window.Theme, { size = UDim2.new(1, -8, 0, 20), position = UDim2.fromOffset(4, 0), wrapped = true })
 		table.insert(self._rows, row)
 		return row
+	end
+	function panel:AddSection(name)
+		local section = createSection(self._window, content, name or "Section", "PanelSection_" .. tostring(#self._rows + 1), math.max(120, self.Frame.Size.Y.Offset - 36))
+		section.Frame.Size = UDim2.new(1, -8, 0, math.max(120, self.Frame.Size.Y.Offset - 36))
+		section.Frame.LayoutOrder = #self._rows + 1
+		table.insert(self._rows, section.Frame)
+		return section
+	end
+	function panel:AddColumn()
+		local frame = create("Frame", {
+			Name = "Column",
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+		}, content)
+		create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Vertical,
+			VerticalFlex = Enum.UIFlexAlignment.Fill,
+			Padding = UDim.new(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}, frame)
+		return setmetatable({ _window = self._window, Frame = frame, _sectionCount = 0 }, Column)
 	end
 	function panel:AddButton(text, callback)
 		local row = button(content, text, self._window.Theme, { size = UDim2.new(1, -8, 0, 25), position = UDim2.fromOffset(4, 0) })
@@ -1054,8 +1095,10 @@ end
 
 local Tab = {}
 Tab.__index = Tab
-local Column = {}
+Column = {}
 Column.__index = Column
+local MultiSection = {}
+MultiSection.__index = MultiSection
 local Section = {}
 Section.__index = Section
 
@@ -1066,42 +1109,59 @@ function BacktrackUI:AddTab(name, iconText)
 	end
 	local index = #self._tabs + 1
 	local tab = setmetatable({ _window = self, Name = name or ("Tab " .. index), _iconText = iconText, _columns = {}, _sectionCount = 0 }, Tab)
-	tab.Button = button(self.TabBar, tab.Name, self.Theme, {
-		name = "TabButton",
-		size = UDim2.new(0, 0, 1, 0),
-		height = 20,
-		background = self.Theme.background,
-		border = self.Theme.inline,
-		textSize = 11,
-	})
-	tab.Button.AutomaticSize = Enum.AutomaticSize.X
-	create("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, tab.Button)
-	tab.Indicator = create("Frame", {
-		Name = "AccentLine",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 0, 1, 0),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = self.Theme.accent,
+	tab.Button = create("TextButton", {
+		Name = "TabButton",
+		AutoButtonColor = false,
+		Size = UDim2.new(0, 0, 1, -2),
+		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
-		Visible = false,
+		Text = "",
+		ZIndex = 5,
+	}, self.TabBar)
+	tab.Inline = create("Frame", {
+		Name = "Inline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, 0),
+		BackgroundColor3 = self.Theme.inline,
+		BorderSizePixel = 0,
+		ZIndex = 5,
 	}, tab.Button)
-	tab.Page = create("ScrollingFrame", {
+	tab.Face = create("Frame", {
+		Name = "Face",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -1),
+		BackgroundColor3 = self.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ZIndex = 5,
+	}, tab.Inline)
+	tab.FaceGradient = gradient(tab.Face, self.Theme.contrastTop, self.Theme.contrastBottom)
+	tab.Label = label(tab.Face, tab.Name, self.Theme, {
+		name = "TabLabel",
+		textSize = 12,
+		align = Enum.TextXAlignment.Center,
+		color = self.Theme.text,
+		zIndex = 6,
+	})
+	tab.Page = create("Frame", {
 		Name = "Page_" .. tostring(index),
 		Size = UDim2.new(1, 0, 1, 0),
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollBarThickness = 4,
-		ScrollBarImageColor3 = self.Theme.accent,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Visible = false,
 	}, self.Pages)
-	tab.Grid = create("Frame", {
-		Name = "Columns",
-		Position = UDim2.fromOffset(8, 8),
-		Size = UDim2.new(1, -16, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
+	tab.Grid = tab.Page
+	create("UIListLayout", {
+		Name = "ColumnsLayout",
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalFlex = Enum.UIFlexAlignment.Fill,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 4),
+	}, tab.Page)
+	create("UIPadding", {
+		PaddingTop = UDim.new(0, 4),
+		PaddingBottom = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 4),
 	}, tab.Page)
 	tab.Button.Activated:Connect(function() tab:SetActive(true) end)
 	table.insert(self._tabs, tab)
@@ -1110,12 +1170,8 @@ function BacktrackUI:AddTab(name, iconText)
 end
 
 function Tab:_layoutColumns()
-	local count = math.max(#self._columns, 1)
-	local gap = 8
 	for index, column in ipairs(self._columns) do
-		local width = 1 / count
-		column.Frame.Position = UDim2.new(width * (index - 1), (index - 1) * gap / count, 0, 0)
-		column.Frame.Size = UDim2.new(width, -gap * (count - 1) / count, 0, 0)
+		column.Frame.LayoutOrder = index
 	end
 end
 
@@ -1126,12 +1182,15 @@ function Tab:Column(index)
 		local nextIndex = #self._columns + 1
 		local frame = create("Frame", {
 			Name = "Column" .. tostring(nextIndex),
-			Position = UDim2.new(),
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
+			Size = UDim2.new(1, 0, 1, 0),
 			BackgroundTransparency = 1,
 		}, self.Grid)
-		create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, frame)
+		create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Vertical,
+			VerticalFlex = Enum.UIFlexAlignment.Fill,
+			Padding = UDim.new(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}, frame)
 		local column = setmetatable({ _tab = self, Frame = frame }, Column)
 		table.insert(self._columns, column)
 	end
@@ -1157,49 +1216,232 @@ function Tab:SetActive(active)
 	end
 	for _, tab in ipairs(self._window._tabs) do
 		tab.Page.Visible = tab == self
-		tab.Button.BackgroundColor3 = self._window.Theme.background
-		tab.Button.TextColor3 = tab == self and self._window.Theme.accent or self._window.Theme.text
-		tab.Indicator.Visible = tab == self
+		local selected = tab == self
+		tab.Label.TextColor3 = selected and self._window.Theme.accent or self._window.Theme.text
+		tab.Face.Size = selected and UDim2.new(1, -2, 1, 0) or UDim2.new(1, -2, 1, -1)
+		tab.FaceGradient.Rotation = selected and -90 or 90
 	end
 	self._window.ActiveTab = self
 end
 
-function Column:AddSection(title)
-	if type(title) == "table" then title = title.name or title.title end
-	local window = self._tab._window
-	self._tab._sectionCount = self._tab._sectionCount + 1
-	local section = setmetatable({ _window = window, Name = title or "Section", _controlCount = 0 }, Section)
+createSection = function(window, parent, title, objectName, fixedHeight)
+	local section = setmetatable({
+		_window = window,
+		Name = title or "Section",
+		_controlCount = 0,
+	}, Section)
 	section.Frame = create("Frame", {
-		Name = "Section_" .. tostring(self._tab._sectionCount),
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = window.Theme.surface,
-		BorderSizePixel = 0,
-	}, self.Frame)
-	stroke(section.Frame, window.Theme.outline, 1)
-	gradient(section.Frame, window.Theme.contrastTop, window.Theme.contrastBottom)
-	label(section.Frame, section.Name, window.Theme, {
-		position = UDim2.fromOffset(7, 2),
-		size = UDim2.new(1, -14, 0, 18),
-		color = window.Theme.accent,
-		textSize = 12,
-	})
-	create("Frame", {
-		Position = UDim2.fromOffset(6, 22),
-		Size = UDim2.new(1, -12, 0, 1),
+		Name = objectName or "Section",
+		Size = fixedHeight and UDim2.new(1, 0, 0, fixedHeight) or UDim2.new(1, 0, 1, 0),
 		BackgroundColor3 = window.Theme.inline,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, parent)
+	section.Outline = create("Frame", {
+		Name = "Outline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = window.Theme.outline,
+		BorderSizePixel = 0,
 	}, section.Frame)
+	section.Surface = create("Frame", {
+		Name = "Surface",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = window.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, section.Outline)
+	gradient(section.Surface, window.Theme.contrastTop, window.Theme.contrastBottom)
+	section.AccentBar = create("Frame", {
+		Name = "AccentBar",
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = window.Theme.accent,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, section.Surface)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167)),
+	}, section.AccentBar)
+	section.Title = label(section.Surface, section.Name, window.Theme, {
+		name = "SectionTitle",
+		position = UDim2.fromOffset(6, 4),
+		size = UDim2.new(1, -12, 0, 14),
+		textSize = 12,
+		color = window.Theme.text,
+	})
+	section.Scroll = create("ScrollingFrame", {
+		Name = "ContentScroll",
+		Position = UDim2.fromOffset(0, 20),
+		Size = UDim2.new(1, 0, 1, -20),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 2,
+		ScrollBarImageColor3 = window.Theme.accent,
+		MidImage = window.Images.scroll,
+		TopImage = window.Images.scroll,
+		BottomImage = window.Images.scroll,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Active = true,
+	}, section.Surface)
 	section.Content = create("Frame", {
 		Name = "Controls",
-		Position = UDim2.fromOffset(6, 26),
-		Size = UDim2.new(1, -12, 0, 0),
+		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
-	}, section.Frame)
-	create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, section.Content)
-	create("UIPadding", { PaddingBottom = UDim.new(0, 4) }, section.Content)
+	}, section.Scroll)
+	create("UIListLayout", {
+		Padding = UDim.new(0, 4),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, section.Content)
+	create("UIPadding", { PaddingBottom = UDim.new(0, 10) }, section.Scroll)
 	return section
+end
+
+function Column:AddSection(title)
+	if type(title) == "table" then title = title.name or title.title end
+	local window = self._window or self._tab._window
+	self._sectionCount = (self._sectionCount or 0) + 1
+	return createSection(window, self.Frame, title, "Section_" .. tostring(self._sectionCount))
+end
+
+function Column:Column()
+	local frame = create("Frame", {
+		Name = "NestedColumn",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+	}, self.Frame)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		VerticalFlex = Enum.UIFlexAlignment.Fill,
+		Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, frame)
+	return setmetatable({ _window = self._window or self._tab._window, Frame = frame, _sectionCount = 0 }, Column)
+end
+
+function Column:MultiSection(options)
+	if type(options) == "string" then options = { names = { options } } end
+	options = options or {}
+	local names = options.names or { "Section A", "Section B" }
+	local window = self._window or self._tab._window
+	local multi = setmetatable({ _window = window, Name = options.name or "MultiSection", Sections = {}, Tabs = {} }, MultiSection)
+	local frame = create("Frame", {
+		Name = "MultiSection",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundColor3 = window.Theme.inline,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, self.Frame)
+	multi.Frame = frame
+	local outline = create("Frame", {
+		Name = "Outline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = window.Theme.outline,
+		BorderSizePixel = 0,
+	}, frame)
+	local surface = create("Frame", {
+		Name = "Surface",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = window.Theme.contrastTop,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}, outline)
+	gradient(surface, window.Theme.contrastTop, window.Theme.contrastBottom)
+	local accent = create("Frame", {
+		Name = "AccentBar",
+		Size = UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = window.Theme.accent,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, surface)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167)),
+	}, accent)
+	local tabHolder = create("Frame", {
+		Name = "Subtabs",
+		Position = UDim2.new(0, -1, 0, 0),
+		Size = UDim2.new(1, 2, 0, 21),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+	}, surface)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalFlex = Enum.UIFlexAlignment.Fill,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, -3),
+	}, tabHolder)
+	multi.Pages = create("Frame", {
+		Name = "Subpages",
+		Position = UDim2.fromOffset(0, 21),
+		Size = UDim2.new(1, 0, 1, -21),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+	}, surface)
+	for index, name in ipairs(names) do
+		local tabButton = create("TextButton", {
+			Name = "Subtab_" .. tostring(index),
+			AutoButtonColor = false,
+			Size = UDim2.new(0, 0, 1, 0),
+			BackgroundColor3 = window.Theme.outline,
+			BorderSizePixel = 0,
+			Text = "",
+			ZIndex = 1,
+		}, tabHolder)
+		local tabInline = create("Frame", {
+			Position = UDim2.fromOffset(1, 1),
+			Size = UDim2.new(1, 0, 1, -2),
+			BackgroundColor3 = window.Theme.inline,
+			BorderSizePixel = 0,
+		}, tabButton)
+		local tabFace = create("Frame", {
+			Position = UDim2.fromOffset(1, 1),
+			Size = UDim2.new(1, -2, 1, -1),
+			BackgroundColor3 = window.Theme.contrastTop,
+			BorderSizePixel = 0,
+		}, tabInline)
+		local tabGradient = gradient(tabFace, window.Theme.contrastTop, window.Theme.contrastBottom)
+		local tabLabel = label(tabFace, name, window.Theme, {
+			name = "SubtabLabel",
+			textSize = 12,
+			align = Enum.TextXAlignment.Center,
+			color = window.Theme.text,
+		})
+		local page = create("Frame", {
+			Name = "Subpage_" .. tostring(index),
+			Size = UDim2.new(1, 0, 1, 0),
+			BackgroundTransparency = 1,
+			Visible = false,
+		}, multi.Pages)
+		window._sectionIndex = (window._sectionIndex or 0) + 1
+		local section = createSection(window, page, name, "Section_" .. tostring(window._sectionIndex))
+		section.MultiSection = multi
+		section.Page = page
+		section.TabButton = tabButton
+		tabButton.Activated:Connect(function() multi:SetActive(section) end)
+		table.insert(multi.Sections, section)
+		table.insert(multi.Tabs, { button = tabButton, label = tabLabel, face = tabFace, gradient = tabGradient })
+	end
+	function multi:SetActive(sectionOrName)
+		local selected
+		for index, section in ipairs(self.Sections) do
+			local active = section == sectionOrName or section.Name == sectionOrName or (sectionOrName == nil and index == 1)
+			section.Page.Visible = active
+			self.Tabs[index].label.TextColor3 = active and window.Theme.accent or window.Theme.text
+			self.Tabs[index].face.Size = active and UDim2.new(1, -2, 1, 0) or UDim2.new(1, -2, 1, -1)
+			self.Tabs[index].gradient.Rotation = active and -90 or 90
+			if active then selected = section end
+		end
+		return selected
+	end
+	multi:SetActive()
+	return table.unpack(multi.Sections)
 end
 
 function Tab:Section(title, columnIndex) return self:AddSection(title, columnIndex) end
@@ -1209,22 +1451,39 @@ function Section:_row(name, height, fullWidth)
 	self._controlCount = self._controlCount + 1
 	local row = create("Frame", {
 		Name = "Row" .. tostring(self._controlCount),
-		Size = UDim2.new(1, 0, 0, height or 26),
+		Size = UDim2.new(1, -8, 0, height or 14),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 	}, self.Content)
-	local text = label(row, name or "", self._window.Theme, {
-		position = UDim2.fromOffset(2, 0),
-		size = fullWidth and UDim2.new(1, -4, 1, 0) or UDim2.new(0.55, -2, 1, 0),
-		textSize = 11,
-		truncate = true,
+	local nameHolder = create("Frame", {
+		Name = "NameAndToggle",
+		Size = UDim2.new(0, 0, 0, 14),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+	}, row)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 5),
+	}, nameHolder)
+	local text = label(nameHolder, name or "", self._window.Theme, {
+		name = "Name",
+		size = UDim2.new(0, 0, 0, 14),
+		automaticSize = Enum.AutomaticSize.X,
+		textSize = 12,
+		truncate = not fullWidth,
 	})
 	local right = create("Frame", {
 		Name = "Accessories",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -1, 0.5, 0),
-		Size = UDim2.new(0.43, 0, 1, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -1, 0, 1),
+		Size = UDim2.new(0, 0, 0, 12),
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
 	}, row)
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
@@ -1233,7 +1492,7 @@ function Section:_row(name, height, fullWidth)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Padding = UDim.new(0, 4),
 	}, right)
-	return row, text, right
+	return row, text, right, nameHolder
 end
 
 local function makeControl(section, options, row, initial, setter)
@@ -1243,39 +1502,51 @@ end
 
 function Section:Toggle(options)
 	options = options or {}
-	local row, text, right = self:_row(options.name, 26)
-	local rail = create("Frame", {
-		Name = "Switch",
-		Size = UDim2.fromOffset(30, 16),
-		BackgroundColor3 = self._window.Theme.border,
+	local row, text, right, nameHolder = self:_row(options.name, 14)
+	local box = create("TextButton", {
+		Name = "Checkbox",
+		AutoButtonColor = false,
+		Size = UDim2.fromOffset(14, 14),
+		BackgroundColor3 = self._window.Theme.accent,
 		BorderSizePixel = 0,
 		LayoutOrder = 1,
-	}, right)
-	corner(rail, 8)
-	local knob = create("Frame", {
-		Name = "Knob",
-		Position = UDim2.fromOffset(2, 2),
-		Size = UDim2.fromOffset(12, 12),
-		BackgroundColor3 = self._window.Theme.text,
+		Text = "",
+	}, nameHolder)
+	local inner = create("Frame", {
+		Name = "Inline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self._window.Theme.inline,
 		BorderSizePixel = 0,
-	}, rail)
-	corner(knob, 6)
+	}, box)
+	local face = create("Frame", {
+		Name = "CheckFill",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self._window.Theme.accent,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, inner)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(117, 117, 117)),
+	}, face)
 	local control
 	local function set(value, silent)
 		value = value == true
 		control.Value = value
 		self._window._values[control.Flag] = value
-		TweenService:Create(rail, TweenInfo.new(0.12), { BackgroundColor3 = value and self._window.Theme.accent or self._window.Theme.border }):Play()
-		TweenService:Create(knob, TweenInfo.new(0.12), { Position = value and UDim2.fromOffset(16, 2) or UDim2.fromOffset(2, 2) }):Play()
+		TweenService:Create(face, TweenInfo.new(0.12), { BackgroundTransparency = value and 0 or 1 }):Play()
 		if not silent then invoke(control.Callback, value) end
 		return value
 	end
 	control = makeControl(self, options, row, options.default == true, set)
-	local hit = create("TextButton", { BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1, 1), ZIndex = 3 }, rail)
-	hit.Activated:Connect(function() control:Set(not control.Value) end)
+	box.Activated:Connect(function() control:Set(not control.Value) end)
 	control:Set(control.Value, true)
 	control.Label = text
 	control._right = right
+	control.Checkbox = box
 	control.Keybind = function(target, bindOptions) return target._section:_keybind(bindOptions, target._right) end
 	control.Colorpicker = function(target, pickerOptions) return target._section:_colorpicker(pickerOptions, target._right) end
 	control.keybind = control.Keybind
@@ -1285,28 +1556,49 @@ end
 
 function Section:Slider(options)
 	options = options or {}
-	local row, text, right = self:_row(options.name, options.height or 38)
-	text.Size = UDim2.new(0.48, 0, 0, 20)
-	text.Position = UDim2.fromOffset(2, 0)
+	local row, text, right = self:_row(options.name, options.height or 29)
 	local track = create("TextButton", {
 		Name = "Track",
 		AutoButtonColor = false,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -1, 0.5, 4),
-		Size = UDim2.new(0.5, -2, 0, 6),
-		BackgroundColor3 = self._window.Theme.border,
+		Position = UDim2.fromOffset(0, 15),
+		Size = UDim2.new(1, -1, 0, 12),
+		BackgroundColor3 = self._window.Theme.outline,
 		BorderSizePixel = 0,
 		Text = "",
 	}, row)
-	corner(track, 4)
-	local fill = create("Frame", { Name = "Fill", Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = self._window.Theme.accent, BorderSizePixel = 0 }, track)
-	corner(fill, 4)
-	local valueText = label(row, "", self._window.Theme, {
-		position = UDim2.new(0.5, 0, 0, 0),
-		size = UDim2.new(0.5, -3, 0, 18),
-		align = Enum.TextXAlignment.Right,
-		textSize = 10,
-		color = self._window.Theme.muted,
+	local inner = create("Frame", {
+		Name = "Inline",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self._window.Theme.inline,
+		BorderSizePixel = 0,
+	}, track)
+	local face = create("Frame", {
+		Name = "Face",
+		Position = UDim2.fromOffset(1, 1),
+		Size = UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = self._window.Theme.contrastTop,
+		BorderSizePixel = 0,
+	}, inner)
+	gradient(face, self._window.Theme.contrastTop, self._window.Theme.contrastBottom)
+	local fill = create("Frame", {
+		Name = "Fill",
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = self._window.Theme.accent,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+	}, face)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(117, 117, 117)),
+	}, fill)
+	local valueText = label(face, "", self._window.Theme, {
+		position = UDim2.new(0, 0, 0, -1),
+		size = UDim2.new(1, 0, 1, 0),
+		align = Enum.TextXAlignment.Center,
+		textSize = 12,
+		color = self._window.Theme.text,
+		zIndex = 3,
 	})
 	local min = tonumber(options.min or options.minimum) or 0
 	local max = tonumber(options.max or options.maximum) or 100
@@ -1327,9 +1619,9 @@ function Section:Slider(options)
 		if decimals then value = tonumber(string.format("%." .. tostring(#decimals) .. "f", value)) end
 		control.Value = value
 		self._window._values[control.Flag] = value
-		local ratio = max == min and 0 or (value - min) / (max - min)
+		local ratio = max == min and 0 or math.clamp((value - min) / (max - min), 0, 1)
 		fill.Size = UDim2.new(ratio, 0, 1, 0)
-		valueText.Text = formatValue(value)
+		valueText.Text = formatValue(value) .. "/" .. formatValue(max)
 		if not silent then invoke(control.Callback, value) end
 		return value
 	end
@@ -1359,13 +1651,32 @@ function Section:Slider(options)
 	control:Set(control.Value, true)
 	control.Label = text
 	control._right = right
+	control.Track = track
 	return control
 end
 
 function Section:Dropdown(options)
 	options = options or {}
-	local row, text, right = self:_row(options.name, 28)
-	local open = button(right, "Select", self._window.Theme, { size = UDim2.new(1, 0, 0, 22), textSize = 10 })
+	local row, text, right = self:_row(options.name, options.height or 33)
+	local open = button(row, "Select", self._window.Theme, {
+		name = "DropdownButton",
+		position = UDim2.fromOffset(0, 15),
+		size = UDim2.new(1, -1, 0, 18),
+		textSize = 12,
+		align = Enum.TextXAlignment.Left,
+		background = self._window.Theme.outline,
+		border = self._window.Theme.inline,
+		radius = 0,
+	})
+	create("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, open)
+	label(open, "+", self._window.Theme, {
+		name = "Expand",
+		position = UDim2.new(1, -12, 0, 0),
+		size = UDim2.fromOffset(9, 18),
+		align = Enum.TextXAlignment.Right,
+		textSize = 12,
+		zIndex = 4,
+	})
 	local items = options.items or options.options or {}
 	local multi = options.multi == true or options.multiselect == true
 	local control
@@ -1467,26 +1778,25 @@ end
 
 function Section:Textbox(options)
 	options = options or {}
-	local row, text, right = self:_row(options.name, 28)
+	local hasName = type(options.name) == "string" and options.name ~= ""
+	local row, text = self:_row(options.name, options.height or (hasName and 33 or 18))
 	local input = create("TextBox", {
 		Name = "Input",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -1, 0.5, 0),
-		Size = UDim2.new(1, 0, 0, 22),
-		BackgroundColor3 = self._window.Theme.background,
+		Position = UDim2.fromOffset(0, hasName and 15 or 0),
+		Size = UDim2.new(1, -1, 0, 18),
+		BackgroundColor3 = self._window.Theme.outline,
 		BorderSizePixel = 0,
 		ClearTextOnFocus = false,
-				Font = Enum.Font.Legacy,
+		Font = Enum.Font.Legacy,
 		Text = tostring(options.default or ""),
 		PlaceholderText = options.placeholder or "Type here...",
 		PlaceholderColor3 = self._window.Theme.muted,
 		TextColor3 = self._window.Theme.text,
-		TextSize = 10,
+		TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Left,
-	}, right)
-	corner(input, 3)
-	stroke(input, self._window.Theme.border, 1)
-	create("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 5) }, input)
+	}, row)
+	stroke(input, self._window.Theme.inline, 1)
+	create("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, input)
 	local control
 	local function set(value, silent)
 		value = tostring(value == nil and "" or value)
@@ -1505,7 +1815,7 @@ function Section:Textbox(options)
 	control:Set(control.Value, true)
 	control.Input = input
 	control.Label = text
-	control._right = right
+	control._right = nil
 	return control
 end
 
@@ -1546,9 +1856,9 @@ end
 function Section:Label(options)
 	if type(options) == "string" then options = { name = options } end
 	options = options or {}
-	local row, text, right = self:_row(options.name or options.text or "", options.height or 20)
-	text.TextSize = options.textSize or 10
-	text.TextColor3 = options.color or self._window.Theme.muted
+	local row, text, right = self:_row(options.name or options.text or "", options.height or 14)
+	text.TextSize = options.textSize or 12
+	text.TextColor3 = options.color or self._window.Theme.text
 	text.TextWrapped = options.wrapped == true
 	local control = { _section = self, _row = row, _right = right, Label = text, Value = text.Text }
 	if options.tooltip then self._window:AddTooltip(row, options.tooltip) end
@@ -1587,7 +1897,7 @@ function Section:_keybind(options, right, owner)
 	options = options or {}
 	if not right then
 		local row, text
-		row, text, right = self:_row(options.name or "Keybind", 26)
+		row, text, right = self:_row(options.name or "Keybind", 14)
 		owner = owner or { _section = self, _row = row, Label = text }
 	end
 	local window = self._window
@@ -1595,8 +1905,14 @@ function Section:_keybind(options, right, owner)
 	local key = options.key
 	local mode = normalizeMode(options.mode)
 	local active = mode == "Always" or (mode ~= "Never" and options.default == true)
-	local bindButton = button(right, "None", window.Theme, { size = UDim2.fromOffset(58, 20), textSize = 9 })
-	local modeButton = button(right, mode, window.Theme, { size = UDim2.fromOffset(52, 20), textSize = 8 })
+	local bindButton = button(right, "None", window.Theme, {
+		size = UDim2.fromOffset(42, 14), textSize = 10,
+		background = window.Theme.outline, border = window.Theme.inline,
+	})
+	local modeButton = button(right, mode, window.Theme, {
+		size = UDim2.fromOffset(38, 14), textSize = 9,
+		background = window.Theme.outline, border = window.Theme.inline,
+	})
 	local control = {}
 	control._section = self
 	control._row = ownerRow or (right and right.Parent)
@@ -1669,7 +1985,7 @@ function Section:_colorpicker(options, right, owner)
 	options = options or {}
 	local row, text
 	if not right then
-		row, text, right = self:_row(options.name or "Color", 26)
+		row, text, right = self:_row(options.name or "Color", 14)
 		owner = owner or { _section = self, _row = row, Label = text }
 	end
 	local window = self._window
@@ -1685,8 +2001,12 @@ function Section:_colorpicker(options, right, owner)
 	control.Value = { color = initialColor, alpha = initialAlpha }
 	control.Alpha = initialAlpha
 	control._window = window
-	local swatch = button(right, "", window.Theme, { size = UDim2.fromOffset(30, 20), background = initialColor, textSize = 8 })
-	swatch.Text = "●"
+	local swatch = button(right, "", window.Theme, {
+		size = UDim2.fromOffset(14, 14),
+		background = initialColor,
+		border = window.Theme.inline,
+		textSize = 8,
+	})
 	swatch.BackgroundTransparency = 1 - initialAlpha
 	swatch.TextColor3 = initialColor
 	local function set(value, alpha, silent)
@@ -2084,6 +2404,9 @@ BacktrackUI.create_dock = BacktrackUI.CreateDock
 Tab.column = Tab.AddColumn
 Tab.section = Tab.AddSection
 Column.section = Column.AddSection
+Column.column = Column.Column
+Column.multi_section = Column.MultiSection
+Column.add_multi_section = Column.MultiSection
 Section.toggle = Section.Toggle
 Section.slider = Section.Slider
 Section.dropdown = Section.Dropdown

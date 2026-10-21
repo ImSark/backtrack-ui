@@ -1,8 +1,8 @@
 # Backtrack UI
 
-A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example uses the original `Combat`, `Players`, `Misc`, and `Visuals` tabs and recreates the 604×631 window with its square nested outlines, rose accent, dark blue-grey gradient, compact controls, dock, and source-sized companion panels.
+A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example uses the original `Combat`, `Players`, `Misc`, and `Visuals` tabs, their two-column arrangement, nested columns and section tabs, plus the 604×631 window, square outlines, rose accent, dark blue-grey gradient, compact controls, dock, and source-sized companion panels.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))` and, when executor file APIs are available, downloads the original PNG icons and glow into a local asset cache with `getcustomasset` or `getsynasset`. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. Roblox does not expose the source's downloaded Tahoma font as a built-in font, so the library uses `Enum.Font.Legacy` as its compact fallback.
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))` and, when executor file APIs are available, downloads the original PNG icons, glow, and Tahoma font into a local asset cache. It registers Tahoma as a `FontFace`, matching the source menu; other environments fall back to `Enum.Font.Legacy`. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. A custom `FontFace` can be supplied as `theme.fontFace`.
 
 ## Quick start
 
@@ -69,7 +69,7 @@ The [example client](example.client.lua) loads the public library directly from 
 ## Components
 
 - Window with draggable title bar, tab navigation, visibility toggle, and theme overrides.
-- Tabs, flexible columns, sections, and collapsible configuration groups.
+- Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
 - Source-sized detached utility panels, a draggable 157×39 navigation dock, watermark, and notifications.
@@ -80,6 +80,8 @@ The [example client](example.client.lua) loads the public library directly from 
 Controls accept a `flag` and `callback`. Flags default to a generated name when omitted. A color picker returns `{ color = Color3, alpha = number }` from `Get()` and calls its callback with `(color, alpha)`. A keybind returns `{ key = EnumItem, mode = string, active = boolean }`.
 
 ## Builder-style aliases
+
+`Column:MultiSection({ names = { ... } })` returns one section object per name. Each section is selected by its inline tab; a section exposes `SetActive()` through its `MultiSection` field. `Column:Column()` creates a nested fill-height column, and detached panels support `panel:AddColumn()`.
 
 The lowercase methods are available for compact builder code:
 
