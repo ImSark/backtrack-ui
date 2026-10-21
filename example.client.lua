@@ -20,7 +20,7 @@ if type(writefile) == "function" and type(customAsset) == "function" then
 		if not ok or not exists then pcall(makefolder, folder) end
 	end
 
-	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "scroll", "glow4" }) do
+	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "scroll", "pointer", "logo", "transparency", "glow4" }) do
 		local path = folder .. "/" .. name .. ".png"
 		local exists = false
 		if type(isfile) == "function" then
@@ -49,7 +49,7 @@ if type(writefile) == "function" and type(customAsset) == "function" then
 	end
 	if not fontExists then
 		local ok, bytes = pcall(function()
-			return game:HttpGet("https://github.com/backtrack-tech/backtrack.tech/raw/main/fonts/fs-tahoma-8px.ttf")
+			return game:HttpGet("https://raw.githubusercontent.com/backtrack-tech/backtrack.tech/main/fonts/fs-tahoma-8px.ttf")
 		end)
 		if ok and type(bytes) == "string" and #bytes > 0 then pcall(writefile, fontPath, bytes) end
 	end
@@ -85,9 +85,10 @@ local menu = BacktrackUI.new({
 })
 
 local function previewToggle(section, name, default)
+	local flag = name:lower():gsub("[^%w]+", "_")
 	return section:Toggle({
 		name = name,
-		flag = name:lower():gsub("[^%w]+", "_"),
+		flag = flag ~= "" and flag or nil,
 		default = default == true,
 		callback = function(value)
 			print(name .. ":", value)
@@ -95,20 +96,114 @@ local function previewToggle(section, name, default)
 	})
 end
 
-local function previewSlider(section, name, min, max, default, suffix)
+local function previewSlider(section, name, min, max, default, suffix, step)
+	local flag = name:lower():gsub("[^%w]+", "_")
 	return section:Slider({
 		name = name,
-		flag = name:lower():gsub("[^%w]+", "_"),
+		flag = flag ~= "" and flag or nil,
 		min = min,
 		max = max,
 		default = default,
-		step = 1,
+		step = step or 1,
 		suffix = suffix or "",
 	})
 end
 
--- These are the source menu's four tabs, flex columns, and section tabs. The
--- displayed controls only demonstrate the UI library.
+local function T(name, default, keybind, color, config, configControls, colorpickers)
+	return {
+		kind = "toggle",
+		name = name,
+		default = default,
+		keybind = keybind,
+		color = color,
+		config = config,
+		configControls = configControls,
+		colorpickers = colorpickers,
+	}
+end
+
+local function S(name, min, max, default, suffix, step)
+	return { kind = "slider", name = name, min = min, max = max, default = default, suffix = suffix, step = step }
+end
+
+local function D(name, items, default, multi)
+	return { kind = "dropdown", name = name, items = items, default = default, multi = multi }
+end
+
+local function B(name)
+	return { kind = "button", name = name }
+end
+
+local function L(name, colorpickers)
+	return { kind = "label", name = name, colorpickers = colorpickers }
+end
+
+local X = { kind = "splitter" }
+
+local white = Color3.fromRGB(255, 255, 255)
+local black = Color3.fromRGB(0, 0, 0)
+local green = Color3.fromRGB(0, 255, 0)
+local yellow = Color3.fromRGB(255, 255, 0)
+local red = Color3.fromRGB(255, 0, 0)
+local accent = Color3.fromRGB(255, 98, 127)
+local fontChoices = { "Micro", "Minecraftia", "Monaco", "Nokia", "Smallest Pixel", "Tahoma", "Verdana" }
+
+local function colors(names, color, alpha)
+	local result = {}
+	for _, name in ipairs(names) do
+		table.insert(result, { name = name, color = color or white, alpha = alpha })
+	end
+	return result
+end
+
+local function populate(section, definitions)
+	for _, item in ipairs(definitions) do
+		local control
+		if item.kind == "toggle" then
+			control = previewToggle(section, item.name, item.default)
+		elseif item.kind == "label" then
+			control = section:Label({ name = item.name })
+		end
+		if control then
+			if item.config then
+				control:Configuration({ name = item.config }, function(configuration)
+					populate(configuration, item.configControls or {})
+				end)
+			end
+			if item.color then control:Colorpicker({ name = item.name, color = item.color }) end
+			for _, picker in ipairs(item.colorpickers or {}) do
+				control:Colorpicker(picker)
+			end
+			if item.keybind then
+				control:Keybind({ name = item.name, mode = type(item.keybind) == "string" and item.keybind or nil })
+			end
+		elseif item.kind == "slider" then
+			previewSlider(section, item.name, item.min, item.max, item.default, item.suffix, item.step)
+		elseif item.kind == "dropdown" then
+			local default = item.default
+			if item.multi and default ~= nil and type(default) ~= "table" then default = { default } end
+			section:Dropdown({
+				name = item.name,
+				flag = item.name:lower():gsub("[^%w]+", "_") ~= "" and item.name:lower():gsub("[^%w]+", "_") or nil,
+				items = item.items,
+				default = default,
+				multi = item.multi,
+			})
+		elseif item.kind == "button" then
+			section:Button({
+				name = item.name,
+				callback = function() print(item.name .. " clicked") end,
+			})
+		elseif item.kind == "textbox" then
+			section:Textbox({ name = item.name, placeholder = item.placeholder, max = item.max })
+		elseif item.kind == "splitter" then
+			section:Splitter(item)
+		end
+	end
+end
+
+-- This reproduces the source's visible tab, column, section, and root-control
+-- layout. Everything here is presentation-only; no game actions are attached.
 local combat = menu:AddTab("Combat")
 local combatLeft = combat:Column()
 local combatAim, combatVisualization = combatLeft:MultiSection({ names = { "Aiming", "Visualization" } })
@@ -116,116 +211,305 @@ local combatRight = combat:Column()
 local combatOther = combatRight:AddSection("Other")
 local weaponMods = combatRight:Column():AddSection("Weapon Modifications")
 
-local silentAim = previewToggle(combatAim, "Silent Aim")
-silentAim:Keybind({ name = "Silent Aim", flag = "silent_aim_bind", mode = "Hold" })
-silentAim:Colorpicker({ name = "Aim Color", flag = "aim_color", color = Color3.fromRGB(255, 98, 127) })
-local aimAssist = previewToggle(combatAim, "Aim Assist")
-aimAssist:Keybind({ name = "Aim Assist", flag = "aim_assist_bind", mode = "Hold" })
-previewToggle(combatAim, "Auto Shoot")
-previewToggle(combatAim, "Wall Check")
-previewToggle(combatAim, "Dead Check")
-previewToggle(combatAim, "Distance Check")
-previewToggle(combatAim, "Use FOV", true)
-previewSlider(combatAim, "FOV Radius", 1, 1250, 150)
-combatAim:Dropdown({ name = "Target Part", flag = "target_part", items = { "Head", "Upper Torso", "HumanoidRootPart" }, default = "Head" })
-
-previewToggle(combatVisualization, "Enable FOV")
-combatVisualization:Colorpicker({ name = "Gradient Color Left", flag = "fov_gradient_left", color = Color3.fromRGB(255, 98, 127) })
-combatVisualization:Colorpicker({ name = "Gradient Color Right", flag = "fov_gradient_right", color = Color3.fromRGB(203, 79, 104) })
-previewToggle(combatVisualization, "Filled")
-previewToggle(combatVisualization, "Glow")
-previewToggle(combatVisualization, "Spin")
-previewSlider(combatVisualization, "Spin Speed", -5, 5, 1)
-previewToggle(combatVisualization, "Enable Snapline")
-
-combatOther:Dropdown({
-	name = "Target Sorting Type",
-	flag = "target_sorting",
-	items = { "Closest To Mouse", "Distance" },
-	default = "Closest To Mouse",
+populate(combatAim, {
+	T("Silent Aim", false, true, nil, "Silent Aim Options", {
+		T("Force Hit", false, true), X, T("Target Friendlies", false, true), T("Prioritize Enemies", true, true), X,
+		D("Target Sorting Type", { "Closest To Mouse", "Distance" }, "Closest To Mouse"), X,
+		T("Target Players", true, true), T("Target AI", true, true), T("Target MI24V Helicopter", true, true),
+	}),
+	T("Aim Assist", false, "Hold", nil, "Aim Assist Options", {
+		D("Method", { "Camera", "Mouse" }, "Camera"), S("Smoothing", 1, 100, 20),
+	}),
+	X,
+	T("Auto Shoot", false, true, nil, "Auto Shoot Options", {
+		S("Delay", 0, 1, 0.01, "s", 0.01), S("Scan Rate", 0.01, 1, 0.2, "s", 0.01),
+	}),
+	X,
+	T("Wall Check", false, true), T("Dead Check", false, true),
+	T("Distance Check", false, true, nil, "Distance Check Options", { S("Maximum Distance", 1, 3000, 1300, "m") }), X,
+	T("Use FOV", true, true), S("FOV Radius", 1, 1250, 150), S("Hitchance", 1, 100, 100, "%"),
+	D("Hitboxes", { "Head", "Torso", "HumanoidRootPart" }, "Head", true),
 })
-previewToggle(combatOther, "Target Players", true)
-previewToggle(combatOther, "Target AI", true)
-previewToggle(combatOther, "Prioritize Enemies", true)
-combatOther:Dropdown({ name = "Priority", flag = "priority", items = { "Enemy", "Neutral", "Friendly" }, default = "Neutral" })
-
-previewToggle(weaponMods, "No Recoil")
-previewToggle(weaponMods, "No Spread")
-previewToggle(weaponMods, "Unlock Firemodes")
-previewToggle(weaponMods, "Double Tap")
-previewToggle(weaponMods, "Rapid Fire")
-previewSlider(weaponMods, "Fire Rate", 1, 100, 1, "%")
-previewToggle(weaponMods, "Rapid Knife")
-previewSlider(weaponMods, "Swing Rate", 1, 100, 1, "%")
+populate(combatVisualization, {
+	T("Target Indicator", false, false, nil, "Indicator Options", {
+		D("Position", { "Above", "Below", "Left", "Right" }, "Above"), D("Font", fontChoices, "Tahoma"),
+	}, colors({ "Low" }, accent)),
+	T("Inventory Viewer", false, false, nil, "Inventory Viewer Options", {
+		D("Position", { "Left", "Right" }, "Right"), S("Width", 100, 500, 250), S("Height", 100, 500, 300),
+	}), X,
+	T("Enable FOV", false, false, nil, "FOV Options", {
+		T("Gradient"), S("Thickness", 1, 5, 1), S("Transparency", 0, 1, 0.5, nil, 0.01),
+	}, colors({ "Gradient Color Left", "Gradient Color Right" }, accent)),
+	T("Enable Snapline", false, false, nil, "Snapline Options", {
+		D("Position", { "Top", "Center", "Bottom" }, "Bottom"), S("Thickness", 1, 5, 1),
+	}, colors({ "Gradient Color Local", "Gradient Color Target" }, accent)), X,
+	T("Override Headshot Hitsound", false, false, nil, "Hitsound Options", { D("Hitsound", { "Default", "Bell", "Rust" }, "Default"), S("Volume", 0, 2, 1, nil, 0.01) }),
+	T("Override Body Hitsound", false, false, nil, "Hitsound Options", { D("Hitsound", { "Default", "Bell", "Rust" }, "Default"), S("Volume", 0, 2, 1, nil, 0.01) }),
+	T("Override Killsound"), X,
+	T("Override Shoot Sound", false, false, nil, "Shoot Sound Options", { D("Sound", { "Default", "Suppressed", "Rifle" }, "Default"), S("Volume", 0, 2, 1, nil, 0.01) }), X,
+	T("Bullet Tracers", false, false, nil, "Bullet Tracer Options", { S("Lifetime", 0.1, 5, 1, "s", 0.1) }, colors({ "Gradient Color Start", "Gradient Color End" }, accent)),
+	T("Hitmarkers", false, false, nil, "Hitmarker Options", { S("Size", 1, 20, 5) }, colors({ "Gradient Color Left", "Gradient Color Right" }, accent)),
+	T("Bullet Impacts", false, false, nil, "Bullet Impact Options", { S("Lifetime", 0.1, 5, 1, "s", 0.1) }, colors({ "Impact Color" }, accent)),
+	T("Hit VFX", false, false, nil, "Hit VFX Options", { D("Effect", { "Default", "Spark", "Ring" }, "Default") }),
+})
+populate(combatOther, {
+	T("Server Desync Resolver", false, true), T("Stream Sync", false, true), X,
+	T("Sit on Resolve", false, true), X,
+	T("Underground Resolver", false, true, nil, "Underground Resolver Options", {
+		S("Depth", 5, 50, 15, "m"), D("Method", { "Default", "Velocity" }, "Default"),
+	}),
+	T("Sky Peek", false, "Hold", nil, "Sky Peek Options", { S("Height", 1, 300, 50, "m"), S("Timeout", 0.1, 3, 1, "s", 0.1) }),
+	T("TP Peek", false, "Hold", nil, "TP Peek Options", {
+		S("Height", 1, 300, 50, "m"), S("Timeout", 0.1, 3, 1, "s", 0.1), D("Method", { "Classic", "CFrame" }, "Classic"),
+	}),
+})
+populate(weaponMods, {
+	T("Instant Aim"), T("Instant Bullet"), T("Instant Equip"), T("Instant Lean"), T("No Bobbing"),
+	T("No Recoil"), T("No Sway"), T("Remove Muzzle Effects"), T("Remove Obstructions"),
+	T("Remove Sprinting Animation"), T("Remove Spread"), T("Unlock Firemodes"), T("Double Tap", false, true),
+	T("Rapid Fire", false, false, nil, "Rapid Fire Options", { S("Fire Rate", 1, 100, 1) }),
+	T("Rapid Knife", false, false, nil, "Rapid Knife Options", { S("Swing Rate", 1, 100, 1) }),
+})
 
 local playersTab = menu:AddTab("Players")
 local playerSections = playersTab:Column()
 local playerESP, npcESP, otherESP = playerSections:MultiSection({ names = { "Players", "NPC", "Other" } })
 local playerSide = playersTab:Column()
-local preview = playerSide:AddSection("ESP Preview")
+playerSide:AddSection("ESP Preview")
 local playerOptions = playerSide:Column():AddSection("Options")
-preview:Label({ name = "Player ESP Preview", color = Color3.fromRGB(224, 224, 224) })
-preview:Label({ name = "Name    Distance    Weapon", color = Color3.fromRGB(160, 160, 166) })
-previewToggle(playerESP, "ESP Enabled")
-previewToggle(playerESP, "Bounding Box")
-previewToggle(playerESP, "Name")
-previewToggle(playerESP, "Distance")
-previewToggle(playerESP, "Health Bar")
-previewToggle(playerESP, "Weapon")
-previewToggle(npcESP, "ESP Enabled")
-previewToggle(npcESP, "Bounding Box")
-previewToggle(npcESP, "Name")
-previewToggle(npcESP, "Distance")
-previewToggle(otherESP, "ESP Enabled")
-previewToggle(otherESP, "Exits")
-previewToggle(otherESP, "Items")
-previewToggle(otherESP, "Helicopters")
-playerOptions:Dropdown({ name = "Bounding Type", items = { "Static", "Dynamic" }, default = "Static" })
-previewSlider(playerOptions, "Dynamic Padding", 0.7, 2, 1)
-previewSlider(playerOptions, "Static Width", 2, 4, 3.6)
-previewSlider(playerOptions, "Static Height", 5, 5.5, 5)
-previewToggle(playerOptions, "Display Measurement Unit", true)
-playerOptions:Dropdown({ name = "Measurement Unit", items = { "Studs", "Meters" }, default = "Meters" })
+
+local function espTextOptions()
+	return {
+		D("Font", fontChoices, "Tahoma"),
+		T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+		L("Color", colors({ "Text Color" }, white)),
+	}
+end
+
+local function populateCharacterESP(section)
+	local boxOptions = {
+		L("Color", colors({ "Gradient Top", "Gradient Bottom" }, white)),
+		S("Gradient Rotation", 0, 180, 90, "°"),
+		T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+		T("Glow", false, false, nil, nil, nil, colors({ "Gradient Top", "Gradient Bottom" }, white, 0.5)),
+		T("Fill", false, false, nil, nil, nil, colors({ "Gradient Top", "Gradient Bottom" }, white, 0.5)),
+		S("Fill Gradient Rotation", 0, 180, 90, "°"),
+	}
+	local healthColors = colors({ "Color 1" }, green)
+	for _, picker in ipairs(colors({ "Color 2" }, yellow)) do table.insert(healthColors, picker) end
+	for _, picker in ipairs(colors({ "Color 3" }, red)) do table.insert(healthColors, picker) end
+	local healthOptions = {
+		L("Color", healthColors),
+		T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+		T("Glow", false, false, nil, nil, nil, colors({ "Color 1", "Color 2", "Color 3" }, white, 0.5)),
+		T("Background", false, false, nil, nil, nil, colors({ "Color 1", "Color 2", "Color 3" }, white, 0.5)),
+		T("Health Flag", false, false, nil, "Health Flag Options", {
+			T("Damaged Only"),
+			D("Position", { "Left", "Right", "Top", "Bottom" }, "Left"),
+			D("Font", fontChoices, "Tahoma"),
+			T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+			T("Text Color", false, false, white),
+			S("Gradient Layers", 1, 10, 3), S("Thickness", 1, 5, 1),
+			T("Animate"), D("Easing Style", { "Linear", "Sine", "Back", "Bounce", "Circular", "Cubic", "Elastic", "Exponential", "Quad", "Quart", "Quint" }, "Linear"),
+			D("Direction", { "In", "Out", "InOut" }, "InOut"),
+		}),
+	}
+	local weaponOptions = {
+		T("Icon", false, false, nil, nil, nil, colors({ "Image Color" }, white)),
+		S("Size", 8, 32, 16), D("Sampling", { "Default", "Pixelated" }, "Default"),
+		D("Font", fontChoices, "Tahoma"), T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+		L("Color", colors({ "Text Color" }, white)),
+	}
+	local desyncOptions = { S("Threshold", 0, 100, 50, "%") }
+	for _, item in ipairs(espTextOptions()) do table.insert(desyncOptions, item) end
+
+	populate(section, {
+		T("ESP Enabled", false, true, nil, "ESP Options", { S("Render Distance", 1, 3000, 1300, "m") }),
+		X,
+		T("Bounding Box", false, false, nil, "Bounding Box Options", boxOptions),
+		T("Health Bar", false, false, nil, "Health Bar Options", healthOptions),
+		X,
+		T("Name", false, false, nil, "Name Options", textFeatureOptions),
+		T("Distance", false, false, nil, "Distance Options", espTextOptions()),
+		T("Weapon", false, false, nil, "Weapon Options", weaponOptions),
+		X,
+		T("KD", false, false, nil, "KD Options", espTextOptions()),
+		T("Invisible", false, false, nil, "Invisible Options", espTextOptions()),
+		T("Desyncing", false, false, nil, "Desyncing Options", desyncOptions),
+		T("Visible", false, false, nil, "Visible Options", espTextOptions()),
+		D("Flag Font", fontChoices, "Tahoma"),
+		X,
+		T("Chams", false, false, nil, nil, nil, colors({ "Cham Color" }, white)),
+		T("Glow Chams", false, false, nil, "Glow Cham Options", {
+			D("Type", { "Outer", "Inner", "Both" }, "Both"), S("Intensity", 0, 10, 1),
+			T("Cham Color", false, false, white),
+		}),
+		T("Highlight Chams", false, false, nil, "Highlight Options", {
+			D("Type", { "Always On Top", "Occluded" }, "Always On Top"),
+			T("Fill Color", false, false, white), T("Outline Color", false, false, black),
+		}),
+	})
+end
+
+populateCharacterESP(playerESP)
+populateCharacterESP(npcESP)
+
+local function markerOptions(kind)
+	local options = {
+		T("Render Outline", true, false, nil, nil, nil, colors({ "Outline Color" }, black)),
+		X,
+		T("Icon", false, false, nil, nil, nil, colors({ "Image Color" }, white)),
+		T("Distance"),
+		X,
+		D("Font", fontChoices, "Tahoma"),
+	}
+	if kind == "Corpses" then
+		table.insert(options, 6, T("Local Corpse", false, false, nil, nil, nil, colors({ "Text Color", "Image Color" }, white)))
+	elseif kind == "Dropped Items" then
+		table.insert(options, 4, S("Icon Size", 8, 32, 16))
+	end
+	return options
+end
+
+populate(otherESP, {
+	T("ESP Enabled", false, true, nil, "ESP Options", { S("Render Distance", 1, 1300, 1300, "m") }),
+	X,
+	T("Exits", false, false, white, "Exit Options", markerOptions("Exits")),
+	T("Vehicles", false, false, white, "Vehicle Options", markerOptions("Vehicles")),
+	T("Corpses", false, false, white, "Corpse Options", markerOptions("Corpses")),
+	T("Dropped Items", false, false, white, "Dropped Item Options", markerOptions("Dropped Items")),
+	T("MI24V Helicopter", false, false, white, "Heli Options", markerOptions("Helicopter")),
+})
+populate(playerOptions, {
+	D("Bounding Type", { "Static", "Dynamic" }, "Static"),
+	S("Dynamic Padding", 0.7, 2, 1, nil, 0.01), S("Static Width", 2, 4, 3.6, nil, 0.1), S("Static Height", 5, 5.5, 5, nil, 0.1),
+	X, T("Display Measurement Unit", true), D("Measurement Unit", { "Studs", "Meters" }, "Meters"),
+	X, D("Font Case", { "Uppercase", "Lowercase", "Titlecase" }, "Lowercase"), S("Update Rate", 30, 240, 240, "hz"),
+	X, B("Test Healthbar Animation"),
+})
 
 local misc = menu:AddTab("Misc")
 local movement, exploits = misc:Column():MultiSection({ names = { "Movement", "Exploits" } })
 local miscSide = misc:Column()
 local localOptions, chat = miscSide:MultiSection({ names = { "Local", "Chat" } })
 local replication, replicationVisuals = miscSide:Column():MultiSection({ names = { "Replication", "Visualization" } })
-previewToggle(movement, "Flyhack")
-previewSlider(movement, "Horizontal Speed", 1, 100, 16)
-previewSlider(movement, "Vertical Speed", 1, 100, 16)
-previewToggle(movement, "Infinite Stamina")
-previewToggle(exploits, "Long Jump")
-previewToggle(exploits, "Speed")
-previewToggle(localOptions, "Third Person")
-previewToggle(localOptions, "Custom FOV")
-previewSlider(localOptions, "Field of View", 60, 120, 90, "°")
-previewToggle(chat, "Chat Spammer")
-previewToggle(chat, "Chat Filter Bypass")
-previewToggle(replication, "Name Changer")
-previewToggle(replication, "Fake Lag")
-previewToggle(replicationVisuals, "Show Replication")
-previewToggle(replicationVisuals, "Show Chams")
+populate(movement, {
+	T("Flyhack", false, true, nil, "Flyhack Options", {
+		S("Horizontal Speed", 0.1, 100, 20, nil, 0.1), S("Vertical Speed", 0.1, 100, 20, nil, 0.1), S("Speed Multiplier", 0.1, 10, 1, nil, 0.1),
+	}),
+	T("Long Jump", false, "Hold", nil, "Long Jump Options", {
+		S("Forward Force", 1, 15, 8, nil, 0.1), S("Upward Force", 0, 10, 1.5, nil, 0.1), S("Cooldown", 0.1, 3, 1, nil, 0.1),
+	}), X,
+	T("Speedhack", false, true, nil, "Speedhack Options", { S("Speed", 0.1, 30, 20, nil, 0.1) }),
+	T("Jumphack", false, true, nil, "Jumphack Options", { S("Height", 0.1, 20, 3, nil, 0.1) }),
+	T("Gravity", false, true, nil, "Gravity Options", { S("Gravity", 1, 300, 196.2) }),
+	T("Max Slope Angle", false, false, nil, "Gravity Options", { S("Slope Angle", 1, 89, 89) }), X,
+	T("Bunnyhop", false, true), T("Remove Fall Damage", false, true),
+})
+populate(exploits, {
+	B("Reset Character"), X, D("Detonation Mode", { "All", "One" }, "All"), B("Explode Landmines"),
+	D("UAZ Spawn Type", { "Farthest", "Nearest", "Random" }, "Nearest"), B("Spawn UAZ"), X,
+	D("Traders", { "Anna", "Blaze", "Boss", "Designer", "Jake", "Mihkel", "Nurse", "Seryozha" }, "Blaze"),
+	B("Teleport Traders"), B("Unlock Traders"), X, B("Sort Inventory"), B("Sort Vault"),
+})
+populate(localOptions, {
+	T("Jesus", false, true), T("No Drown", false, true), T("No Water Physics", false, true), X,
+	T("Multi Use", false, true, nil, "Multi Use Options", { S("Times", 2, 4, 3, "x") }),
+	T("Pickup Aura", false, true, nil, "Pickup Aura Options", { S("Scan Interval", 0.1, 1, 1, nil, 0.01), S("Range", 0.1, 20, 8, "st", 0.1) }),
+})
+populate(chat, { T("Trash Talk"), D("Trash Talk Type", { "Backtrack", "Casual", "Exploit", "Passive" }, "Backtrack") })
+populate(replication, {
+	T("Position Spoofer", false, true), S("X Offset", -10, 10, 0, nil, 0.1), S("Y Offset", -4, 6, 0, nil, 0.1), S("Z Offset", -10, 10, 0, nil, 0.1),
+	X, T("Rotation Spoofer", false, true, nil, "Rotation Spoofer Options", {
+		T("Spin Roll", false, true), S("Roll Speed", 0.1, 25, 1, nil, 0.1),
+		T("Spin Pitch", false, true), S("Pitch Speed", 0.1, 25, 1, nil, 0.1),
+		T("Spin Yaw", false, true), S("Yaw Speed", 0.1, 25, 1, nil, 0.1),
+	}), S("Roll", -180, 180, 0), S("Pitch", -180, 180, 0), S("Yaw", -180, 180, 0),
+	X, T("Play Animation", false, true, nil, "Animation Options", {
+		{ kind = "textbox", name = "", placeholder = "Enter Animation ID", max = 30 },
+		S("Time Position", 0, 15, 0, nil, 0.0001), S("Speed", 0, 10, 0, nil, 0.1),
+	}), X, T("Custom Pitch", false, true), S("", -0.7, 0.7, 0, nil, 0.1),
+})
+populate(replicationVisuals, {
+	T("Visualize Server Position", false, false, Color3.fromRGB(255, 98, 127), "Cham Options", {
+		S("Glow Intensity", 1, 5, 1.5, nil, 0.01), D("Type", { "Default", "Flat", "Shaded" }, "Default"),
+	}),
+	T("Third Person Only"), T("Tween Position"), T("Animate", true),
+})
 
 local visuals = menu:AddTab("Visuals")
 local notifiers = visuals:Column():AddSection("Notifiers")
 local visualsSide = visuals:Column()
 local worldVisuals, lightingVisuals = visualsSide:MultiSection({ names = { "World", "Lighting" } })
 local visualLocal, visualLocalOptions, crosshair = visualsSide:Column():MultiSection({ names = { "Viewmodel", "Local", "Crosshair" } })
-previewToggle(notifiers, "Item Notifier")
-previewToggle(notifiers, "Exit Notifier")
-previewToggle(worldVisuals, "Remove Grass")
-previewToggle(worldVisuals, "Remove Foliage")
-previewToggle(worldVisuals, "Remove Trees")
-previewToggle(worldVisuals, "Grass Color")
-previewToggle(lightingVisuals, "Override Ambient")
-previewToggle(lightingVisuals, "Override Brightness")
-previewToggle(visualLocal, "Viewmodel Enabled")
-previewSlider(visualLocal, "Field of View", 60, 120, 90, "°")
-previewToggle(visualLocalOptions, "Third Person")
-previewToggle(crosshair, "Crosshair Enabled")
-previewToggle(crosshair, "Spin")
+populate(notifiers, {
+	T("Report Notifications", false, false, nil, "Report Notification Options", {
+		T("Sound"), S("Volume", 1, 2, 1, nil, 0.1), T("Flashing"), S("Duration", 1, 10, 3, nil, 0.1),
+	}),
+	B("Show Current Reports"), X,
+	T("Enable Join Notifications", false, false, nil, "Join Notification Options", {
+		T("Display KD"), T("Display Hours Played"), S("Duration", 1, 10, 3, nil, 0.1),
+	}),
+	T("Enable Leave Notifications", false, false, nil, "Leave Notification Options", {
+		T("Display KD"), T("Display Hours Played"), S("Duration", 1, 10, 3, nil, 0.1),
+	}),
+	T("Flashing Notifications"), X,
+	T("Flare Calls"), T("Supply Drops"), T("Notification Sound"), S("Notification Volume", 0.1, 2, 1, nil, 0.1),
+	T("Flashing Notifications"), S("Notification Duration", 0.5, 3, 3, nil, 0.1),
+})
+populate(worldVisuals, {
+	T("Remove Grass"), T("Remove Foliage"), T("Remove Trees"), X,
+	T("Grass Color", false, false, Color3.fromRGB(98, 151, 108)),
+	T("Ground Color", false, false, Color3.fromRGB(128, 108, 84)),
+	T("LeafyGrass Color", false, false, Color3.fromRGB(79, 134, 85)),
+	T("Rock Color", false, false, Color3.fromRGB(110, 110, 110)),
+	T("Sand Color", false, false, Color3.fromRGB(191, 174, 127)),
+})
+populate(lightingVisuals, {
+	T("Override Ambient", false, false, nil, nil, nil, colors({ "Ambient Color", "Outdoor Ambient Color" }, white)), X,
+	T("Override Brightness"), S("Brightness", 0, 75, 2), X,
+	T("Override Clock Time"), S("Clock Time", 0, 24, 22.9, nil, 0.1), X,
+	T("Override Fog", false, false, nil, "Fog Options", { S("Density", 0, 1, 0, nil, 0.01), S("Offset", 0, 1, 0, nil, 0.01) }),
+	T("Override Fog Colors", false, false, nil, nil, nil, colors({ "Color", "Decay" }, white)), X,
+	T("Override Glare", false, false, nil, "Glare Options", { S("Glare", 0, 10, 0, nil, 0.1) }),
+	T("Override Haze", false, false, nil, "Haze Options", { S("Haze", 0, 10, 0, nil, 0.1) }),
+	T("Override Bloom", false, false, nil, "Bloom Options", {
+		S("Intensity", 0, 10, 0.5, nil, 0.1), S("Size", 0, 100, 56, nil, 0.1), S("Threshold", -1, 1, 0.8, nil, 0.1),
+	}),
+})
+populate(visualLocal, {
+	T("Override Viewmodel", false, false, nil, "Viewmodel Options", {
+		T("Remove Clothing"), T("Apply Highlight", false, false, nil, nil, nil, colors({ "Instance Fill Color", "Instance Outline Color" }, Color3.fromRGB(255, 98, 127), 0.5)),
+	}),
+	T("Override Weapon", false, false, nil, "Weapon Options", { S("Field Of View", 1, 120, 90), S("Offset X", -10, 10, 0), S("Offset Y", -10, 10, 0) }),
+	T("Override Arms", false, false, nil, "Arm Options", { S("Transparency", 0, 1, 0, nil, 0.01) }),
+	T("Override Viewmodel Offset", false, false, nil, "Offset Options", { S("X Offset", -10, 10, 0), S("Y Offset", -10, 10, 0), S("Z Offset", -10, 10, 0) }),
+})
+populate(visualLocalOptions, {
+	T("Third Person"), X,
+	T("Self Chams", false, false, nil, "Self Cham Options", {
+		D("Type", { "Default", "Flat", "Shaded" }, "Default"), S("Glow Intensity", 1, 5, 1.5, nil, 0.01),
+	}), X, T("Aspect Ratio", false, false, nil, "Aspect Ratio Options", { S("Ratio", 0.5, 3, 1.78, nil, 0.01) }),
+	T("Override FOV"), S("FOV Value", 1, 120, 90), X,
+	T("Enable Removals"), D("Removals", { "Flashbang", "Gas Mask", "Parallax", "Visor", "Inventory Background", "Inventory Blur", "Inventory Decoration" }, { "Visor" }, true),
+	T("Override Whiz Volume"), S("", 0, 2, 0.5, nil, 0.01), X,
+	T("Look Indicator", false, false, Color3.fromRGB(255, 98, 127)), S("Threshold", 75, 100, 85, "%"),
+	T("Session Data", false, false, nil, "Data Options", {
+		D("Data Elements", { "Player Count", "Server Time", "Weather", "KD", "Kills", "Deaths" }, { "KD", "Kills", "Deaths" }, true),
+	}),
+	T("Spoof Client Data"), T("Hide UI", false, true),
+	D("Hide Elements", { "Main Gui", "Server Info" }, { "Main Gui", "Server Info" }, true),
+})
+populate(crosshair, {
+	T("Enable Crosshair", false, false, Color3.fromRGB(255, 98, 127)), T("Outline", true, false, Color3.fromRGB(0, 0, 0)),
+	D("Position", { "Center", "Mouse", "Target" }, "Center"), S("Gap", 3, 100, 18), S("Length", 1, 75, 37),
+	S("Width", 1, 4, 1), S("Rotation", -180, 180, 0), T("Spin"), S("Spin Speed", -5, 5, 1, nil, 0.1),
+	T("Resize", false, false, nil, "Animation Options", {
+		T("Animate Length"), S("Length Value", 1, 75, 19), X,
+		T("Animate Gap"), S("Gap Value", 3, 100, 36), X,
+		S("Speed", 0.01, 5, 1, nil, 0.01),
+	}),
+})
 
 if showCompanionPanels then
 	local style = menu:CreatePanel("Style", {
@@ -267,25 +551,38 @@ if showCompanionPanels then
 	end)
 	previewToggle(accessibility, "UI Management", true)
 	previewToggle(accessibility, "Aero Snap", true)
+	accessibility:Splitter()
+	accessibility:Dropdown({ name = "Click Sound Style", items = { "Default", "Pride", "Halloween", "Wood", "Experience" }, default = "Default" })
+	accessibility:Slider({ name = "Click Sound Volume", min = 0, max = 10, step = 0.1, default = 1 })
 	otherStyle:Slider({ name = "Animation Frequency", min = 15, max = 240, default = 240, suffix = "hz" })
 	otherStyle:Slider({ name = "Animation Speed", min = 0.5, max = 3, step = 0.1, default = 1 })
 	otherStyle:Slider({ name = "Blur Size", min = 0, max = 56, default = 20 })
 	otherStyle:Slider({ name = "FPS Cap", min = 30, max = 1000, default = 240, suffix = "hz" })
-	otherStyle:Button({ name = "Test Notification", callback = function() menu:Notify("Interface preview notification", 3) end })
+	otherStyle:ButtonHolder({ name = "Server IDs" })
+	otherStyle:Button({ name = "Copy JobId", callback = function() print("Copy JobId") end })
+	otherStyle:Button({ name = "Copy PlaceId", callback = function() print("Copy PlaceId") end })
+	otherStyle:Button({ name = "Copy Join Script", callback = function() print("Copy Join Script") end })
+	otherStyle:ButtonHolder({ name = "Notifications" })
+	otherStyle:Button({ name = "Test Notification", callback = function() menu:Notify("The quick brown fox jumps over the lazy dog", 5) end })
+	otherStyle:Button({ name = "Test Flashing Notification", callback = function() menu:Notify("The quick brown fox jumps over the lazy dog", 5, "warning") end })
+	otherStyle:ButtonHolder({ name = "Session" })
+	otherStyle:Button({ name = "Rejoin Server", callback = function() print("Rejoin Server") end })
 
 	local configurationPanel = menu:CreatePanel("Configurations", {
 		name = "ConfigurationsPanel",
 		image = "configurations",
 		size = UDim2.fromOffset(324, 438),
-		position = UDim2.new(0.5, 208, 0.5, -433),
+		position = UDim2.new(0.5, 604, 0.5, -433),
 	})
 	local configurations = configurationPanel:AddColumn():AddSection("Options")
 	configurations:List({ name = "Configurations", height = 160, items = { "Default", "Example" } })
 	configurations:Textbox({ placeholder = "Type here...", max = 30 })
+	configurations:ButtonHolder({ name = "Configuration Actions" })
 	configurations:Button({ name = "Create", callback = function() print("Add your configuration callback here") end })
 	configurations:Button({ name = "Delete", callback = function() print("Add your configuration callback here") end })
 	configurations:Button({ name = "Load", callback = function() print("Add your configuration callback here") end })
 	configurations:Button({ name = "Save", callback = function() print("Add your configuration callback here") end })
+	configurations:ButtonHolder({ name = "Management Actions" })
 	configurations:Button({ name = "Refresh Configurations", callback = function() print("Add your configuration callback here") end })
 	configurations:Button({ name = "Unload Configuration", callback = function() print("Add your configuration callback here") end })
 	configurationPanel:SetVisible(false)

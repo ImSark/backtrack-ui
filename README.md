@@ -71,7 +71,7 @@ The [example client](example.client.lua) loads the public library directly from 
 - Window with draggable title bar, tab navigation, visibility toggle, and theme overrides.
 - Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
-- Multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
+- Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
 - Source-sized detached utility panels, a draggable 157×39 navigation dock, watermark, and notifications.
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox). Roblox Studio users can upload them and pass their `rbxassetid://...` values in `options.images`; the executor example loads them from the public repo when local asset APIs are available.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
@@ -82,6 +82,8 @@ Controls accept a `flag` and `callback`. Flags default to a generated name when 
 ## Builder-style aliases
 
 `Column:MultiSection({ names = { ... } })` returns one section object per name. Each section is selected by its inline tab; a section exposes `SetActive()` through its `MultiSection` field. `Column:Column()` creates a nested fill-height column, and detached panels support `panel:AddColumn()`.
+
+`Section:ButtonHolder()` starts a horizontal action row. Following `Section:Button()` calls are placed in that row until another button holder is created. Use `Section:MultiButton()` when the buttons should stay inside a single labeled row.
 
 The lowercase methods are available for compact builder code:
 
