@@ -5,41 +5,93 @@ local libraryUrl = "https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/h
 local libraryCacheBuster = tostring(math.floor(os.clock() * 1000000))
 local BacktrackUI = loadstring(game:HttpGet(libraryUrl .. "?t=" .. libraryCacheBuster))()
 
--- Executors with file APIs can load the original pixel icons and glow directly
--- from this public repo. Other environments keep the built-in text fallback.
+-- Executor file APIs install the original pixel icons, glow, and Tahoma font.
 local images = {}
+local fontFace
 local customAsset = getcustomasset or getsynasset
-if type(writefile) == "function" and type(customAsset) == "function" then
+if type(customAsset) == "function" then
 	local folder = "backtrack_ui_assets"
-	if type(isfolder) == "function" and type(makefolder) == "function" then
-		local ok, exists = pcall(isfolder, folder)
-		if not ok or not exists then pcall(makefolder, folder) end
-	end
-	local deleteAsset = delfile or deletefile
-	if type(deleteAsset) == "function" then
-		for _, name in ipairs({ "fs-tahoma-8px.ttf", "Tahoma.font" }) do
-			pcall(deleteAsset, folder .. "/" .. name)
+	if type(writefile) == "function" and type(makefolder) == "function" then
+		local exists = false
+		if type(isfolder) == "function" then
+			local ok, result = pcall(isfolder, folder)
+			exists = ok and result == true
 		end
+		if not exists then pcall(makefolder, folder) end
 	end
-
-	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "scroll", "pointer", "logo", "transparency", "glow4" }) do
-		local path = folder .. "/" .. name .. ".png"
+	local cacheBuster = tostring(math.floor(os.clock() * 1000000))
+	local function loadCachedAsset(path, url)
 		local exists = false
 		if type(isfile) == "function" then
 			local ok, result = pcall(isfile, path)
 			exists = ok and result == true
 		end
-		if not exists then
-			local ok, bytes = pcall(function()
-				return game:HttpGet("https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/assets/roblox/" .. name .. ".png")
-			end)
-			if ok and type(bytes) == "string" and #bytes > 0 then
-				pcall(writefile, path, bytes)
-			end
+		if exists or type(isfile) ~= "function" then
+			local ok, asset = pcall(customAsset, path)
+			if ok and type(asset) == "string" and asset ~= "" then return asset end
 		end
-		local ok, content = pcall(customAsset, path)
-		if ok and type(content) == "string" then images[name] = content end
+		if type(writefile) ~= "function" then
+			warn("[BacktrackUI] Missing cached asset " .. path .. "; this executor needs writefile to install it.")
+			return nil
+		end
+		local requestUrl = url .. (url:find("?", 1, true) and "&" or "?") .. "t=" .. cacheBuster
+		local downloaded, bytes = pcall(function() return game:HttpGet(requestUrl) end)
+		if not downloaded or type(bytes) ~= "string" or #bytes == 0 then
+			warn("[BacktrackUI] Download failed for " .. path .. ".")
+			return nil
+		end
+		local writeCallOk, writeResult = pcall(writefile, path, bytes)
+		if not writeCallOk or writeResult == false then
+			warn("[BacktrackUI] Could not write " .. path .. "; check executor file permissions.")
+			return nil
+		end
+		local loaded, asset = pcall(customAsset, path)
+		if loaded and type(asset) == "string" and asset ~= "" then return asset end
+		warn("[BacktrackUI] Could not load cached asset " .. path .. ".")
+		return nil
 	end
+
+	for _, name in ipairs({ "main", "style", "configurations", "playerlist", "output", "scroll", "pointer", "logo", "transparency", "glow4" }) do
+		local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/refs/heads/main/assets/roblox/" .. name .. ".png"
+		images[name] = loadCachedAsset(folder .. "/" .. name .. ".png", url)
+	end
+
+	local fontUrl = "https://raw.githubusercontent.com/backtrack-tech/backtrack.tech/main/fonts/fs-tahoma-8px.ttf"
+	local fontAsset = loadCachedAsset(folder .. "/fs-tahoma-8px.ttf", fontUrl)
+	if fontAsset then
+		local descriptorPath = folder .. "/Tahoma.font"
+		local descriptorReady = false
+		if type(writefile) == "function" then
+			local descriptor = game:GetService("HttpService"):JSONEncode({
+				name = "BacktrackTahoma",
+				faces = { { name = "Normal", weight = 400, style = "Normal", assetId = fontAsset } },
+			})
+			local writeCallOk, writeResult = pcall(writefile, descriptorPath, descriptor)
+			descriptorReady = writeCallOk and writeResult ~= false
+		elseif type(isfile) == "function" then
+			local ok, exists = pcall(isfile, descriptorPath)
+			descriptorReady = ok and exists == true
+		end
+		if descriptorReady then
+			local descriptorOk, descriptorAsset = pcall(customAsset, descriptorPath)
+			if not descriptorOk or type(descriptorAsset) ~= "string" then
+				warn("[BacktrackUI] Could not load the Tahoma font descriptor.")
+			else
+				local faceOk, registeredFace = pcall(function()
+					return Font.new(descriptorAsset, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				end)
+				if faceOk then
+					fontFace = registeredFace
+				else
+					warn("[BacktrackUI] Tahoma font registration failed; using Roblox Legacy font.")
+				end
+			end
+		else
+			warn("[BacktrackUI] This executor needs writefile to create the Tahoma font descriptor.")
+		end
+	end
+elseif type(customAsset) ~= "function" then
+	warn("[BacktrackUI] This executor needs getcustomasset or getsynasset to load the original images and Tahoma font.")
 end
 
 local menu = BacktrackUI.new({
@@ -49,6 +101,7 @@ local menu = BacktrackUI.new({
 	position = UDim2.fromScale(0.5, 0.5),
 	toggleKey = Enum.KeyCode.Delete,
 	images = images,
+	theme = fontFace and { fontFace = fontFace } or nil,
 })
 
 local function previewToggle(section, name, default)

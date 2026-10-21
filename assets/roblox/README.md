@@ -15,7 +15,7 @@ These PNGs are the small UI images referenced by the original script, from `back
 | `scroll.png` | 800×600 | Original scroll texture |
 | `transparency.png` | 10×10 | Transparency checker texture |
 
-Roblox `ImageLabel` cannot display a local PNG path. Upload the files through Roblox Studio, then pass their returned asset IDs when creating the library:
+The executor example downloads these PNGs to `backtrack_ui_assets` and passes them through executor `getcustomasset` or `getsynasset` APIs. The library also accepts asset IDs directly when a host already has them:
 
 ```lua
 local menu = BacktrackUI.new({

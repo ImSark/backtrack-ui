@@ -2,11 +2,11 @@
 
 A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example reproduces the original `Combat`, `Players`, `Misc`, and `Visuals` tabs and adds `Config`, `Theme`, and `Console` tabs with matching dock shortcuts, demo profile controls, live theme presets and color pickers, and a scrollable console. It also keeps the 604×631 window, square outlines, rose accent, dark blue-grey gradient, compact controls, and dock.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. When executor file APIs are available, it retains only the PNG UI images in a local asset cache. In Roblox Studio, upload the PNGs in [`assets/roblox`](assets/roblox) and pass their asset IDs in `options.images`. A custom `FontFace` can be supplied as `theme.fontFace`.
+The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It caches the PNG UI images and original Tahoma font under `backtrack_ui_assets`, using executor file APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
 
 ## Executor loader
 
-Use this same command each time. The unique query string fetches fresh example and library code from `main`; only the PNG UI images are cached locally:
+Use this same command each time. The unique query string fetches fresh example and library code from `main`; image and font assets are cached locally by the example:
 
 ```lua
 local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/example.client.lua"
@@ -14,21 +14,18 @@ local cacheBuster = tostring(math.floor(os.clock() * 1000000))
 loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 ```
 
-## Quick start
+## Library API
 
-In Roblox Studio, place `backtrack_ui.lua` in a `ModuleScript`, then require it from a `LocalScript`:
+The executor example above handles asset loading and opens the full demo. For a custom executor menu, load the library first:
 
 ```lua
-local BacktrackUI = require(script.Parent.backtrack_ui)
+local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/backtrack_ui.lua"
+local cacheBuster = tostring(math.floor(os.clock() * 1000000))
+local BacktrackUI = loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 
 local menu = BacktrackUI.new({
     title = "Example Menu",
     toggleKey = Enum.KeyCode.RightShift,
-    images = {
-        -- After uploading the PNG files, add entries such as:
-        -- main = "rbxassetid://YOUR_MAIN_ICON_ID",
-        -- glow4 = "rbxassetid://YOUR_GLOW_IMAGE_ID",
-    },
     theme = {
         accent = Color3.fromRGB(255, 98, 127),
     },
@@ -83,7 +80,7 @@ The [example client](example.client.lua) loads the public library directly from 
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
 - Source-sized detached utility panels, a draggable navigation dock with optional readable labels (`menu:CreateDock({ labels = true })`), watermark, and notifications.
-- SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox). Roblox Studio users can upload them and pass their `rbxassetid://...` values in `options.images`; the executor example loads them from the public repo when local asset APIs are available.
+- SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
