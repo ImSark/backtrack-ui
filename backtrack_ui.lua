@@ -934,15 +934,7 @@ function BacktrackUI:SetTheme(overrides)
 		if panel.Gui and panel.Gui.Parent then table.insert(themeGuis, panel.Gui) end
 	end
 	for _, gui in ipairs(themeGuis) do GuiThemes[gui] = self.Theme end
-	if self._destroyed then return self.Theme end
-	if not self._themeRefreshConnection then
-		self._themeRefreshConnection = RunService.RenderStepped:Connect(function()
-			local connection = self._themeRefreshConnection
-			self._themeRefreshConnection = nil
-			if connection then connection:Disconnect() end
-			if not self._destroyed then applyThemeChanges(self) end
-		end)
-	end
+	if not self._destroyed then applyThemeChanges(self) end
 	return self.Theme
 end
 
@@ -2926,10 +2918,6 @@ end
 function BacktrackUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
-	if self._themeRefreshConnection then
-		self._themeRefreshConnection:Disconnect()
-		self._themeRefreshConnection = nil
-	end
 	if self.Dock then self.Dock:Destroy(); self.Dock = nil end
 	self:_restoreCursor()
 	self:_closePopup()
