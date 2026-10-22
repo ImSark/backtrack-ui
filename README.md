@@ -94,7 +94,7 @@ local runButton = toolSection:AddButton({
 runButton:SetText("Run again")
 ```
 
-`CreateDock()` also starts empty. `AddTab()` returns a configurable dock item handle, `AddButton()` adds an action button, and `AddWindow()` / `AddPanel()` explicitly link windows. Create the optional Lua Modules panel separately when you want it:
+`CreateDock()` also starts empty. `AddTab()` returns a configurable dock item handle, `AddButton()` adds an action button, and `AddWindow()` / `AddPanel()` explicitly link windows. Custom module windows are added as dock items when their definitions load. No preset items are inserted. Create the optional Lua Modules panel separately when you want it:
 
 ```lua
 local modules = menu:CreateLuaModuleManager()
@@ -121,11 +121,11 @@ The [example client](example.client.lua) loads the public library directly from 
 - Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
-- Source-sized detached utility panels, a customizable draggable dock with manually added icon buttons, pixel cursor, keybind list, watermark, and notifications. `dock:AddWindow()` links a panel or main window; `dock:AddTab()` and `dock:AddButton()` add custom actions. Nothing is inserted into the dock automatically.
+- Source-sized detached utility panels, a customizable draggable dock with icon buttons, pixel cursor, keybind list, watermark, and notifications. `dock:AddWindow()` links a panel or main window; `dock:AddTab()` and `dock:AddButton()` add custom actions. The dock starts without preset items; module windows are added when their definitions load.
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:CreateWatermark(text)` returns a draggable watermark handle with `SetText`, `SetVisible`, `SetPosition`, `GetPosition`, and `Destroy`. It respects the Roblox topbar inset by default; pass `position`, `displayOrder`, or `ignoreGuiInset` in its options to customize placement.
-- `menu:CreateLuaModuleManager(options)` creates an optional Lua module editor and manager. Add its panel to a dock explicitly with `dock:AddPanel(manager.Panel)`. Modules can declare settings, enable/disable behavior, and setting-change callbacks; their Settings button opens generated controls. Supported setting types are `toggle`, `slider`, `dropdown`, `multidropdown`, `textbox`, `colorpicker`, `keybind`, `button`, and `label`. A module receives `menu`, the manager, and its module context as chunk arguments (`local menu, manager, module = ...`). Definition sources are compiled when first enabled or run and require executor `loadstring` support. Legacy scripts that return no definition remain available as one-shot **Run** modules.
+- `menu:CreateLuaModuleManager(options)` creates an optional Lua module editor and manager. Each loaded module definition gets its own Backtrack-styled window and dock item; the manager's **Open** button opens that same window. A definition can use `Window` to customize its title, icon, size, position, and dock item, `Build(panel, module, menu, manager)` to add any library controls, and `Settings` to generate standard controls automatically. Supported setting types are `toggle`, `slider`, `dropdown`, `multidropdown`, `textbox`, `colorpicker`, `keybind`, `button`, and `label`. Definition sources are compiled when first enabled or run and require executor `loadstring` support. Legacy scripts that return no definition remain available as one-shot **Run** modules.
 
 Example module source to paste into the editor:
 
@@ -133,6 +133,19 @@ Example module source to paste into the editor:
 local menu, manager, module = ...
 
 return {
+    Window = {
+        title = "My Module",
+        iconText = "M",
+        dock = { order = 20 },
+    },
+
+    Build = function(panel, module, menu, manager)
+        local actions = panel:AddColumn():AddSection("Actions")
+        actions:Button({ name = "Say hello", callback = function()
+            menu:Notify("Hello from my module", 3, "success")
+        end })
+    end,
+
     Settings = {
         Active = { type = "toggle", default = true },
         Strength = { type = "slider", min = 0, max = 100, step = 5, default = 35 },
@@ -160,9 +173,9 @@ return {
 }
 ```
 
-The module context provides `Get(name)`, `Set(name, value, silent)`, `Notify(...)`, `Enable()`, `Disable()`, `IsEnabled()`, and `OpenSettings()`. `OnEnable` and `OnDisable` receive `(module, menu, manager)`. A setting's `callback`/`onChanged` receives `(value, module, name)`; the module-level `OnSettingChanged` receives `(name, value, module)`. Color picker values use `{ color = Color3, alpha = number }`.
+The module context provides `Get(name)`, `Set(name, value, silent)`, `Notify(...)`, `Enable()`, `Disable()`, `IsEnabled()`, `OpenWindow()`, and `OpenSettings()` (`OpenSettings` is an alias). `OnEnable` and `OnDisable` receive `(module, menu, manager)`. A setting's `callback`/`onChanged` receives `(value, module, name)`; the module-level `OnSettingChanged` receives `(name, value, module)`. Color picker values use `{ color = Color3, alpha = number }`.
 
-The manager API also exposes `AddModule(name, source, options)`, `GetModule(name)`, `GetModules()`, `LoadModule(name)`, `OpenSettings(name)`, `EnableModule(name)`, `DisableModule(name)`, `SetModuleEnabled(name, bool)`, `RunModule(name)`, `RemoveModule(name)`, and `Destroy()`. Definitions can be registered directly without source text:
+The manager API also exposes `AddModule(name, source, options)`, `GetModule(name)`, `GetModules()`, `LoadModule(name)`, `OpenModule(name)`, `OpenSettings(name)` (an alias), `EnableModule(name)`, `DisableModule(name)`, `SetModuleEnabled(name, bool)`, `RunModule(name)`, `RemoveModule(name)`, and `Destroy()`. Definitions can be registered directly without source text:
 
 ```lua
 manager:AddModule("Demo", "", {

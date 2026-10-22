@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.6.0"
+BacktrackUI.Version = "1.6.1"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -1541,7 +1541,7 @@ function BacktrackUI:CreateLuaModuleManager(options)
 		ClearTextOnFocus = false,
 		Font = Enum.Font.Code,
 		MultiLine = true,
-		PlaceholderText = 'local menu, manager, module = ...\nreturn {\n    Settings = { Enabled = { type = "toggle", default = true } },\n    OnEnable = function(module) end,\n    OnDisable = function(module) end,\n}',
+		PlaceholderText = 'local menu, manager, module = ...\nreturn {\n    Window = { iconText = "M" },\n    Build = function(panel, module, menu, manager) end,\n    Settings = { Enabled = { type = "toggle", default = true } },\n    OnEnable = function(module) end,\n    OnDisable = function(module) end,\n}',
 		PlaceholderColor3 = self.Theme.muted,
 		Text = "",
 		TextColor3 = self.Theme.text,
@@ -1736,105 +1736,160 @@ function BacktrackUI:CreateLuaModuleManager(options)
 			return manager:DisableModule(module.Name)
 		end
 		function context:IsEnabled() return module.Enabled == true end
-		function context:OpenSettings() return manager:OpenSettings(module.Name) end
+		function context:OpenSettings() return manager:OpenModule(module.Name) end
+		function context:OpenWindow() return manager:OpenModule(module.Name) end
 		module.Context = context
 		return context
 	end
 	function manager:_BuildSettingsPanel(module)
 		self:_DestroySettingsPanel(module)
 		normalizeModuleSettings(module)
-		if #module._settingEntries == 0 then return nil end
+		local definition = module.Definition or {}
+		local windowOptions = getDefinitionMember(definition, "Window", "window") or {}
+		if type(windowOptions) ~= "table" then windowOptions = {} end
 		local safeName = tostring(module.Name):gsub("[^%w_%-]", "_")
-		local panel = self._window:CreatePanel(module.Name .. " Settings", {
-			name = "ModuleSettings_" .. safeName,
-			position = UDim2.fromOffset(options.settingsPositionX or 430, options.settingsPositionY or 110),
-			size = options.settingsSize or UDim2.fromOffset(320, 410),
-			visible = false,
+		local panelTitle = windowOptions.title or windowOptions.Title or windowOptions.name or windowOptions.Name or module.Name
+		local panel = self._window:CreatePanel(panelTitle, {
+			name = "Module_" .. safeName .. "_" .. tostring(module.Id),
+			image = windowOptions.icon or windowOptions.Icon or windowOptions.image or windowOptions.Image,
+			position = windowOptions.position or UDim2.fromOffset(options.settingsPositionX or 430, options.settingsPositionY or 110),
+			size = windowOptions.size or options.settingsSize or UDim2.fromOffset(320, 410),
+			visible = windowOptions.visible == true,
 		})
+		module.Panel = panel
 		module.SettingsPanel = panel
-		local section = panel:AddSection("Settings")
 		local context = contextFor(module)
-		for _, entry in ipairs(module._settingEntries) do
-			local settingKey = entry.Key
-			local descriptor = entry.Options
-			local kind = entry.Type
-			local value = module.Values[entry.Key]
-			local controlOptions = copySettings(descriptor)
-			controlOptions.name = descriptor.label or descriptor.Label or descriptor.title or descriptor.Title or entry.Key
-			controlOptions.flag = "module_" .. tostring(module.Id) .. "_" .. entry.Key:gsub("[^%w_]", "_")
-			controlOptions.callback = nil
-			local function changed(nextValue, alpha)
-				if kind == "color" or kind == "colorpicker" then
-					context:Set(settingKey, { color = nextValue, alpha = alpha })
+		local build = getDefinitionMember(definition, "Build", "build", "CreateUI", "createUI")
+		if type(build) == "function" then
+			local ok, err = callModuleCallback(build, panel, context, self._window, self)
+			if not ok then setStatus("Build " .. module.Name .. ": " .. err, self._window.Theme.negative) end
+		end
+		if #module._settingEntries > 0 then
+			local section = panel:AddSection(windowOptions.settingsTitle or windowOptions.SettingsTitle or "Settings")
+			for _, entry in ipairs(module._settingEntries) do
+				local settingKey = entry.Key
+				local descriptor = entry.Options
+				local kind = entry.Type
+				local value = module.Values[entry.Key]
+				local controlOptions = copySettings(descriptor)
+				controlOptions.name = descriptor.label or descriptor.Label or descriptor.title or descriptor.Title or entry.Key
+				controlOptions.flag = "module_" .. tostring(module.Id) .. "_" .. entry.Key:gsub("[^%w_]", "_")
+				controlOptions.callback = nil
+				local function changed(nextValue, alpha)
+					if kind == "color" or kind == "colorpicker" then
+						context:Set(settingKey, { color = nextValue, alpha = alpha })
+					else
+						context:Set(settingKey, nextValue)
+					end
+				end
+				if kind == "toggle" then
+					controlOptions.default = value == true
+					controlOptions.callback = function(nextValue) changed(nextValue) end
+					entry.Control = section:Toggle(controlOptions)
+				elseif kind == "slider" then
+					controlOptions.default = value
+					controlOptions.callback = function(nextValue) changed(nextValue) end
+					entry.Control = section:Slider(controlOptions)
+				elseif kind == "dropdown" or kind == "multidropdown" then
+					controlOptions.items = descriptor.items or descriptor.options or descriptor.values or {}
+					controlOptions.default = value
+					controlOptions.multi = kind == "multidropdown" or descriptor.multi == true
+					controlOptions.callback = function(nextValue) changed(nextValue) end
+					entry.Control = section:Dropdown(controlOptions)
+				elseif kind == "textbox" then
+					controlOptions.default = value
+					controlOptions.callback = function(nextValue) changed(nextValue) end
+					entry.Control = section:Textbox(controlOptions)
+				elseif kind == "color" or kind == "colorpicker" then
+					controlOptions.color = value.color
+					controlOptions.default = value.color
+					controlOptions.alpha = value.alpha
+					controlOptions.callback = function(color, alpha) changed(color, alpha) end
+					entry.Control = section:Colorpicker(controlOptions)
+				elseif kind == "keybind" then
+					controlOptions.key = value.key
+					controlOptions.mode = value.mode
+					controlOptions.default = value.active
+					controlOptions.callback = function(active, key, mode)
+						context:Set(settingKey, { key = key, mode = mode, active = active })
+					end
+					entry.Control = section:Keybind(controlOptions)
+				elseif kind == "button" or kind == "action" then
+					local action = descriptor.onClick or descriptor.OnClick or descriptor.callback or descriptor.Callback
+					entry.Control = section:Button({
+						name = controlOptions.name,
+						text = descriptor.text or descriptor.Text or controlOptions.name,
+						callback = function()
+							local ok, err = callModuleCallback(action, context, self._window, self)
+							if not ok then setStatus(err, self._window.Theme.negative) end
+						end,
+					})
+				elseif kind == "label" then
+					section:Label({ text = descriptor.text or descriptor.default or controlOptions.name })
 				else
-					context:Set(settingKey, nextValue)
+					section:Label({ name = controlOptions.name, text = "Unsupported setting type: " .. kind, color = self._window.Theme.warning })
 				end
-			end
-			if kind == "toggle" then
-				controlOptions.default = value == true
-				controlOptions.callback = function(nextValue) changed(nextValue) end
-				entry.Control = section:Toggle(controlOptions)
-			elseif kind == "slider" then
-				controlOptions.default = value
-				controlOptions.callback = function(nextValue) changed(nextValue) end
-				entry.Control = section:Slider(controlOptions)
-			elseif kind == "dropdown" or kind == "multidropdown" then
-				controlOptions.items = descriptor.items or descriptor.options or descriptor.values or {}
-				controlOptions.default = value
-				controlOptions.multi = kind == "multidropdown" or descriptor.multi == true
-				controlOptions.callback = function(nextValue) changed(nextValue) end
-				entry.Control = section:Dropdown(controlOptions)
-			elseif kind == "textbox" then
-				controlOptions.default = value
-				controlOptions.callback = function(nextValue) changed(nextValue) end
-				entry.Control = section:Textbox(controlOptions)
-			elseif kind == "color" or kind == "colorpicker" then
-				controlOptions.color = value.color
-				controlOptions.default = value.color
-				controlOptions.alpha = value.alpha
-				controlOptions.callback = function(color, alpha) changed(color, alpha) end
-				entry.Control = section:Colorpicker(controlOptions)
-			elseif kind == "keybind" then
-				controlOptions.key = value.key
-				controlOptions.mode = value.mode
-				controlOptions.default = value.active
-				controlOptions.callback = function(active, key, mode)
-					context:Set(settingKey, { key = key, mode = mode, active = active })
-				end
-				entry.Control = section:Keybind(controlOptions)
-			elseif kind == "button" or kind == "action" then
-				local action = descriptor.onClick or descriptor.OnClick or descriptor.callback or descriptor.Callback
-				entry.Control = section:Button({
-					name = controlOptions.name,
-					text = descriptor.text or descriptor.Text or controlOptions.name,
-					callback = function()
-						local ok, err = callModuleCallback(action, context, self._window, self)
-						if not ok then setStatus(err, self._window.Theme.negative) end
-					end,
-				})
-			elseif kind == "label" then
-				section:Label({ text = descriptor.text or descriptor.default or controlOptions.name })
-			else
-				section:Label({ name = controlOptions.name, text = "Unsupported setting type: " .. kind, color = self._window.Theme.warning })
 			end
 		end
+		self:_RegisterDockItem(module)
 		return panel
 	end
+	function manager:_RegisterDockItem(module, dock)
+		dock = dock or self._window.Dock
+		if module.DockItem and module.DockItem._dock == dock and not module.DockItem._destroyed then return module.DockItem end
+		module.DockItem = nil
+		if not dock or not module.Panel then return nil end
+		local definition = module.Definition or {}
+		local windowOptions = getDefinitionMember(definition, "Window", "window") or {}
+		if type(windowOptions) ~= "table" then windowOptions = {} end
+		local dockOptions = getDefinitionMember(windowOptions, "Dock", "dock", "DockOptions", "dockOptions")
+		if dockOptions == nil then dockOptions = getDefinitionMember(definition, "Dock", "dock") end
+		local autoDock = getDefinitionMember(windowOptions, "AutoDock", "autoDock")
+		if type(dockOptions) == "boolean" then autoDock, dockOptions = dockOptions, {} end
+		if type(dockOptions) ~= "table" then dockOptions = {} end
+		if autoDock == false then return nil end
+		local config = copySettings(dockOptions)
+		config.name = config.name or windowOptions.dockName or windowOptions.DockName or module.Name
+		config.icon = config.icon or windowOptions.icon or windowOptions.Icon or windowOptions.image or windowOptions.Image
+			or getDefinitionMember(definition, "Icon", "icon", "Image", "image") or module.Icon
+		config.iconText = config.iconText or windowOptions.iconText or windowOptions.IconText or string.upper(string.sub(module.Name, 1, 1))
+		module.DockItem = dock:AddPanel(module.Panel, config)
+		return module.DockItem
+	end
+	function manager:_AttachDock(dock)
+		for _, module in ipairs(self.Modules) do
+			if module.Panel then self:_RegisterDockItem(module, dock) end
+		end
+	end
 	function manager:_DestroySettingsPanel(module)
+		local modulePanel = module.Panel or module.SettingsPanel
 		local prefix = "module_" .. tostring(module.Id) .. "_"
+		local function belongsToPanel(control)
+			local row = control and control._row
+			if not modulePanel or not row then return false end
+			local ok, isDescendant = pcall(function() return row:IsDescendantOf(modulePanel.Gui) end)
+			return ok and isDescendant
+		end
 		for flag in pairs(self._window._flags) do
-			if tostring(flag):sub(1, #prefix) == prefix then
+			local control = self._window._flags[flag]
+			if tostring(flag):sub(1, #prefix) == prefix or belongsToPanel(control) then
 				self._window._flags[flag] = nil
 				self._window._values[flag] = nil
 			end
 		end
 		for _, list in ipairs({ self._window._controls, self._window._keybinds }) do
 			for index = #list, 1, -1 do
-				if tostring(list[index].Flag or ""):sub(1, #prefix) == prefix then table.remove(list, index) end
+				local control = list[index]
+				if tostring(control.Flag or ""):sub(1, #prefix) == prefix or belongsToPanel(control) then table.remove(list, index) end
 			end
 		end
-		if module.SettingsPanel then
-			module.SettingsPanel:Destroy()
+		if module.DockItem then
+			module.DockItem:Destroy()
+			module.DockItem = nil
+		end
+		if modulePanel then
+			modulePanel:Destroy()
+			module.Panel = nil
 			module.SettingsPanel = nil
 		end
 	end
@@ -1854,7 +1909,10 @@ function BacktrackUI:CreateLuaModuleManager(options)
 	function manager:LoadModule(name)
 		local module = type(name) == "table" and name or findModule(name)
 		if not module then return false, "Module not found: " .. tostring(name) end
-		if module.Loaded then return true, module.Definition or module.LastResult end
+		if module.Loaded then
+			if module.Definition and not module.Panel then self:_BuildSettingsPanel(module) end
+			return true, module.Definition or module.LastResult
+		end
 		if module.Definition then
 			module.Loaded = true
 			normalizeModuleSettings(module)
@@ -1876,14 +1934,14 @@ function BacktrackUI:CreateLuaModuleManager(options)
 		self:Refresh()
 		return true, result
 	end
-	function manager:OpenSettings(name)
+	function manager:OpenModule(name)
 		local module = findModule(name)
 		if not module then return false, "Module not found: " .. tostring(name) end
-		if module.Definition and module._settingEntries and #module._settingEntries == 0 then return false, "This module has no settings." end
-		if not module.SettingsPanel then return false, "Enable a module definition once to load its settings." end
-		module.SettingsPanel:SetVisible(true)
-		return true, module.SettingsPanel
+		if not module.Panel then return false, "Enable a module definition once to load its window." end
+		module.Panel:SetVisible(true)
+		return true, module.Panel
 	end
+	function manager:OpenSettings(name) return self:OpenModule(name) end
 	function manager:GetModule(name)
 		return findModule(name)
 	end
@@ -1971,7 +2029,7 @@ function BacktrackUI:CreateLuaModuleManager(options)
 					setStatus(tostring(result), self._window.Theme.warning)
 				end
 			end)
-			local settingsButton = button(row, "Settings", self._window.Theme, {
+			local settingsButton = button(row, "Open", self._window.Theme, {
 				position = UDim2.fromOffset(212, 3),
 				size = UDim2.fromOffset(56, 24),
 				textSize = 9,
@@ -1979,7 +2037,7 @@ function BacktrackUI:CreateLuaModuleManager(options)
 				border = self._window.Theme.border,
 			})
 			settingsButton.Activated:Connect(function()
-				local ok, result = self:OpenSettings(rowModule.Name)
+				local ok, result = self:OpenModule(rowModule.Name)
 				if not ok then setStatus(result, self._window.Theme.warning) end
 			end)
 			local runButton = button(row, "Run", self._window.Theme, {
@@ -2023,9 +2081,13 @@ function BacktrackUI:CreateLuaModuleManager(options)
 		name = tostring(name or config.name or config.Name or ""):gsub("^%s*(.-)%s*$", "%1")
 		source = tostring(source or config.source or config.Source or "")
 		local definition = config.definition or config.Definition
-		if not definition and (config.settings or config.Settings or config.OnEnable or config.onEnable or config.OnDisable or config.onDisable or config.OnSettingChanged or config.onSettingChanged) then
+		if not definition and (config.settings or config.Settings or config.Window or config.window or config.Build or config.build or config.Icon or config.icon or config.Dock or config.dock or config.OnEnable or config.onEnable or config.OnDisable or config.onDisable or config.OnSettingChanged or config.onSettingChanged) then
 			definition = {
 				Settings = config.settings or config.Settings,
+				Window = config.Window or config.window,
+				Build = config.Build or config.build,
+				Icon = config.Icon or config.icon,
+				Dock = config.Dock or config.dock,
 				OnEnable = config.OnEnable or config.onEnable,
 				OnDisable = config.OnDisable or config.onDisable,
 				OnSettingChanged = config.OnSettingChanged or config.onSettingChanged,
@@ -2046,6 +2108,7 @@ function BacktrackUI:CreateLuaModuleManager(options)
 		module.Source = source
 		module.Definition = definition
 		module.StaticSettings = config.settings or config.Settings
+		module.Icon = config.icon or config.Icon
 		module.Loaded = type(definition) == "table"
 		module.Legacy = false
 		module.LastResult = nil
@@ -2791,6 +2854,9 @@ function BacktrackUI:CreateDock(options)
 		self._window:_syncCursor()
 	end
 	self.Dock = dock
+	if self._luaModuleManager and type(self._luaModuleManager._AttachDock) == "function" then
+		self._luaModuleManager:_AttachDock(dock)
+	end
 	self:_syncCursor()
 	return dock
 end
