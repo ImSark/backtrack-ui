@@ -766,6 +766,7 @@ function BacktrackUI:_hasOpenWindow()
 	for _, panel in ipairs(self._panels) do
 		if panel.Gui and panel.Gui.Enabled then return true end
 	end
+	if self.Dock and self.Dock.Frame and self.Dock.Frame.Parent and self.Dock.Frame.Visible then return true end
 	return false
 end
 
@@ -1973,16 +1974,22 @@ function BacktrackUI:CreateDock(options)
 				{ panel.Gui:GetPropertyChangedSignal("Enabled") })
 		end
 	end
-	function dock:SetVisible(visible) frame.Visible = visible ~= false end
+	function dock:SetVisible(visible)
+		frame.Visible = visible ~= false
+		self._window:_syncCursor()
+	end
 	function dock:Destroy()
 		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
 		table.clear(self._buttonConnections)
 		for _, closeTooltip in ipairs(self._buttonTooltipCloses) do closeTooltip() end
 		table.clear(self._buttonTooltipCloses)
 		if frame.Parent then frame:Destroy() end
+		if self._window.Dock == self then self._window.Dock = nil end
+		self._window:_syncCursor()
 	end
 	dock:Refresh()
 	self.Dock = dock
+	self:_syncCursor()
 	return dock
 end
 
