@@ -71,16 +71,22 @@ local function applyThemeChanges(self)
 	local previous = self._appliedTheme or {}
 	local nextTheme = self.Theme
 	local changedColors = {}
+	local function replacementFor(color)
+		for _, change in ipairs(changedColors) do
+			if color == change.old then return change.new end
+		end
+		return nil
+	end
 	local fontChanged = previous.fontFace ~= nextTheme.fontFace
 	local contrastChanged = previous.contrastTop ~= nextTheme.contrastTop or previous.contrastBottom ~= nextTheme.contrastBottom
 	for key, oldColor in pairs(previous) do
 		local newColor = nextTheme[key]
-		if oldColor ~= newColor and typeof(oldColor) == "Color3" and typeof(newColor) == "Color3" and changedColors[oldColor] == nil then
-			changedColors[oldColor] = newColor
+		if oldColor ~= newColor and typeof(oldColor) == "Color3" and typeof(newColor) == "Color3" then
+			table.insert(changedColors, { old = oldColor, new = newColor })
 		end
 	end
 
-	local hasColorChanges = next(changedColors) ~= nil
+	local hasColorChanges = #changedColors > 0
 	if not hasColorChanges and not fontChanged and not contrastChanged then
 		self._appliedTheme = mergeTheme(nextTheme)
 		return
@@ -110,25 +116,25 @@ local function applyThemeChanges(self)
 			end
 			if hasColorChanges then
 				if object:IsA("UIStroke") then
-					local replacement = changedColors[object.Color]
+					local replacement = replacementFor(object.Color)
 					if replacement then object.Color = replacement end
 				elseif object:IsA("GuiObject") then
-					local replacement = changedColors[object.BackgroundColor3]
+					local replacement = replacementFor(object.BackgroundColor3)
 					if replacement then object.BackgroundColor3 = replacement end
-					replacement = changedColors[object.BorderColor3]
+					replacement = replacementFor(object.BorderColor3)
 					if replacement then object.BorderColor3 = replacement end
 					if textClasses[object.ClassName] then
-						replacement = changedColors[object.TextColor3]
+						replacement = replacementFor(object.TextColor3)
 						if replacement then object.TextColor3 = replacement end
-						replacement = changedColors[object.TextStrokeColor3]
+						replacement = replacementFor(object.TextStrokeColor3)
 						if replacement then object.TextStrokeColor3 = replacement end
 					end
 					if object:IsA("ImageLabel") or object:IsA("ImageButton") then
-						replacement = changedColors[object.ImageColor3]
+						replacement = replacementFor(object.ImageColor3)
 						if replacement then object.ImageColor3 = replacement end
 					end
 					if object:IsA("ScrollingFrame") then
-						replacement = changedColors[object.ScrollBarImageColor3]
+						replacement = replacementFor(object.ScrollBarImageColor3)
 						if replacement then object.ScrollBarImageColor3 = replacement end
 					end
 				end
