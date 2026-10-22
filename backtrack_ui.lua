@@ -364,6 +364,7 @@ function BacktrackUI.new(options)
 		_values = {},
 		_tabs = {},
 		_panels = {},
+		_watermarks = {},
 		_keybinds = {},
 		_connectionsByName = {},
 		_destroyed = false,
@@ -822,6 +823,9 @@ function BacktrackUI:SetTheme(overrides)
 	local properties = { "BackgroundColor3", "TextColor3", "TextStrokeColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
 	local themeGuis = { self.Gui }
 	if self.OverlayGui then table.insert(themeGuis, self.OverlayGui) end
+	for _, watermark in ipairs(self._watermarks) do
+		if watermark.Gui and watermark.Gui.Parent then table.insert(themeGuis, watermark.Gui) end
+	end
 	for _, panel in ipairs(self._panels) do table.insert(themeGuis, panel.Gui) end
 	for _, gui in ipairs(themeGuis) do
 		GuiThemes[gui] = self.Theme
@@ -1420,6 +1424,14 @@ end
 
 function BacktrackUI:CreateWatermark(text, options)
 	options = options or {}
+	local watermarkGui = create("ScreenGui", {
+		Name = self.Gui.Name .. "_Watermark",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = options.ignoreGuiInset == true,
+		DisplayOrder = options.displayOrder or self._options.displayOrder or 100,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, self.Gui.Parent)
+	GuiThemes[watermarkGui] = self.Theme
 	local badge = create("Frame", {
 		Name = "Watermark",
 		Position = options.position or UDim2.fromOffset(31, 0),
@@ -1428,7 +1440,7 @@ function BacktrackUI:CreateWatermark(text, options)
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		Active = true,
-	}, self:_getOverlayGui())
+	}, watermarkGui)
 	local outerInline = create("Frame", {
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -2),
@@ -1460,7 +1472,8 @@ function BacktrackUI:CreateWatermark(text, options)
 		BackgroundColor3 = self.Theme.accent,
 		BorderSizePixel = 0,
 	}, innerSurface)
-	gradient(accent, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167))
+	local accentGradient = gradient(accent, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167))
+	accentGradient.Name = "WatermarkAccentGradient"
 	create("UIPadding", {
 		PaddingLeft = UDim.new(0, 4),
 		PaddingRight = UDim.new(0, 9),
@@ -1474,28 +1487,51 @@ function BacktrackUI:CreateWatermark(text, options)
 		automaticSize = Enum.AutomaticSize.X,
 	})
 	create("UIStroke", { LineJoinMode = Enum.LineJoinMode.Miter }, textLabel)
+	local connections = {}
+	local function listen(signal, callback)
+		local connection = signal:Connect(callback)
+		table.insert(connections, connection)
+		return connection
+	end
 	local start, inputStart
-	connect(self, badge.InputBegan, function(input)
+	listen(badge.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			start, inputStart = badge.Position, input.Position
 		end
 	end)
-	connect(self, UserInputService.InputChanged, function(input)
+	listen(UserInputService.InputChanged, function(input)
 		if start and inputStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - inputStart
 			badge.Position = UDim2.new(start.X.Scale, start.X.Offset + delta.X, start.Y.Scale, start.Y.Offset + delta.Y)
 		end
 	end)
-	connect(self, UserInputService.InputEnded, function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then start = nil end
+	listen(UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			start, inputStart = nil, nil
+		end
 	end)
-	return {
+	local handle = {
+		_window = self,
+		Gui = watermarkGui,
 		Object = badge,
 		Text = textLabel,
 		SetText = function(_, value) textLabel.Text = tostring(value or "") end,
 		SetVisible = function(_, visible) badge.Visible = visible ~= false end,
-		Destroy = function() badge:Destroy() end,
+		SetPosition = function(_, position) badge.Position = position end,
+		GetPosition = function() return badge.Position end,
 	}
+	function handle:Destroy()
+		if self._destroyed then return end
+		self._destroyed = true
+		for _, connection in ipairs(connections) do connection:Disconnect() end
+		table.clear(connections)
+		if self.Gui and self.Gui.Parent then self.Gui:Destroy() end
+		for index, watermark in ipairs(self._window._watermarks) do
+			if watermark == self then table.remove(self._window._watermarks, index) break end
+		end
+	end
+	table.insert(self._watermarks, handle)
+	return handle
 end
 
 function BacktrackUI:CreateDock(options)
@@ -1706,6 +1742,9 @@ function BacktrackUI:Destroy()
 	if self.Dock then self.Dock:Destroy(); self.Dock = nil end
 	self:_restoreCursor()
 	self:_closePopup()
+	while #self._watermarks > 0 do
+		self._watermarks[1]:Destroy()
+	end
 	for _, connection in ipairs(self._connections) do
 		connection:Disconnect()
 	end
