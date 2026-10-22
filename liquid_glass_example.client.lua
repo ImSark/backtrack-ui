@@ -5,11 +5,12 @@ local LiquidGlassUI = loadstring(game:HttpGet(libraryUrl .. "?t=" .. cacheBuster
 
 local ui = LiquidGlassUI.new({
 	title = "Liquid Glass",
-	subtitle = "A clear view of your workspace",
-	footer = "LIQUID GLASS  ·  INTERACTIVE DEMO",
+	subtitle = "A lighter way to stay in control",
+	footer = "YOUR WORKSPACE, IN FOCUS",
 	toggleKey = Enum.KeyCode.RightShift,
-	size = UDim2.fromOffset(720, 500),
-	blur = 14,
+	size = UDim2.fromOffset(760, 580),
+	blur = 8,
+	replaceExisting = true,
 })
 
 local home = ui:AddTab({ name = "Overview", iconText = "◈" })
@@ -18,7 +19,7 @@ local tools = ui:AddTab({ name = "Tools", iconText = "⌘" })
 
 local status = home:AddSection("Welcome")
 status:Label({ name = "Liquid Glass UI", textSize = 14 })
-status:Label("Translucent surfaces, soft reflections, and rounded controls.")
+status:Label("Clear surfaces, soft reflections, and floating controls.")
 status:Button({
 	name = "Show notification",
 	callback = function()
@@ -38,7 +39,15 @@ controls:Slider({ name = "Intensity", min = 0, max = 100, step = 5, default = 45
 controls:Dropdown({ name = "Quality", items = { "Low", "Balanced", "High" }, default = "Balanced" })
 
 local theme = appearance:AddSection("Glass palette")
-theme:Label("Update the accent while the window is open.")
+theme:Label("Make the material your own.")
+theme:Slider({
+	name = "Glass transparency", min = 15, max = 65, default = 34, suffix = "%",
+	callback = function(value) ui:SetTheme({ glassTransparency = value / 100 }) end,
+})
+theme:Slider({
+	name = "Backdrop blur", min = 0, max = 24, default = 8,
+	callback = function(value) ui:SetBlur(value) end,
+})
 theme:Colorpicker({
 	name = "Accent",
 	color = ui.Theme.accent,

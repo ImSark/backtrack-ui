@@ -16,7 +16,7 @@ loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 
 ## Separate Liquid Glass library
 
-`liquid_glass_ui.lua` is an independent library with translucent glass panels, reflective gradients, a responsive specular sweep, and camera-local background blur. Its example uses `blur = 14`; set `blur = 0` to disable blur or call `ui:SetBlur(amount)` at runtime. It does not replace or modify the Backtrack style library. Load its example with:
+`liquid_glass_ui.lua` is an independent library with clear Apple-style glass, floating pill navigation, and rim reflections that respond to the pointer. The example replaces its previous window on reload. It uses `blur = 8`; set `blur = 0` to disable camera blur or call `ui:SetBlur(amount)` at runtime. Load its example with:
 
 ```lua
 local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/liquid_glass_example.client.lua"
@@ -40,6 +40,8 @@ section:Button({ name = "Notify", callback = function() ui:Notify("Hello", 3, "s
 ```
 
 It includes labels, buttons, toggles, sliders, dropdowns, textboxes, color pickers, and keybinds. `SetTheme`, `SetBlur`, `SetVisible`, `Toggle`, `SetMinimized`, and `Destroy` control the window after creation. See [liquid_glass_example.client.lua](liquid_glass_example.client.lua) for a complete demo.
+
+Use `theme.glassTransparency` (default `0.34`) and `theme.controlTransparency` (default `0.58`) to adjust the material. The colors `glassTop`, `glass`, and `glassBottom` tint its surface; `text` and `muted` control the ink. `replaceExisting = true` destroys a previous interface with the same `name`, disconnects its handlers, and removes its camera blur. Leave it off to create separate named windows. Camera blur affects the 3D world view; edge reflections are simulated with UI layers.
 
 ## Library API
 

@@ -7,19 +7,21 @@
 local LiquidGlassUI = {}
 LiquidGlassUI.__index = LiquidGlassUI
 
-LiquidGlassUI.Version = "1.0.0"
+LiquidGlassUI.Version = "1.1.0"
 LiquidGlassUI.Theme = {
-	background = Color3.fromRGB(27, 40, 58),
-	glass = Color3.fromRGB(48, 70, 101),
-	glassTop = Color3.fromRGB(211, 231, 255),
-	glassBottom = Color3.fromRGB(44, 68, 103),
-	control = Color3.fromRGB(113, 147, 190),
-	controlHover = Color3.fromRGB(157, 192, 232),
-	accent = Color3.fromRGB(131, 199, 255),
-	accentSecondary = Color3.fromRGB(199, 181, 255),
-	text = Color3.fromRGB(244, 248, 255),
-	muted = Color3.fromRGB(194, 212, 237),
-	border = Color3.fromRGB(246, 250, 255),
+	background = Color3.fromRGB(242, 246, 251),
+	glass = Color3.fromRGB(224, 233, 245),
+	glassTop = Color3.fromRGB(255, 255, 255),
+	glassBottom = Color3.fromRGB(201, 216, 235),
+	control = Color3.fromRGB(255, 255, 255),
+	controlHover = Color3.fromRGB(239, 247, 255),
+	accent = Color3.fromRGB(0, 122, 255),
+	accentSecondary = Color3.fromRGB(101, 185, 255),
+	text = Color3.fromRGB(24, 32, 45),
+	muted = Color3.fromRGB(78, 91, 110),
+	border = Color3.fromRGB(255, 255, 255),
+	glassTransparency = 0.34,
+	controlTransparency = 0.58,
 	positive = Color3.fromRGB(125, 225, 178),
 	negative = Color3.fromRGB(255, 132, 153),
 }
@@ -66,6 +68,14 @@ local function gradient(parent, top, bottom, rotation, transparency)
 	}, parent)
 end
 
+local function materialColors(theme)
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0, theme.glassTop),
+		ColorSequenceKeypoint.new(0.5, theme.glass),
+		ColorSequenceKeypoint.new(1, theme.glassBottom),
+	})
+end
+
 local function invoke(callback, ...)
 	if type(callback) ~= "function" then return end
 	local ok, err = pcall(callback, ...)
@@ -83,8 +93,8 @@ local function label(parent, text, options)
 		Name = options.name or "Label",
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		Position = options.position or UDim2.new(),
-		Size = options.size or UDim2.new(1, 0, 0, 20),
+		Position = options.position or options.Position or UDim2.new(),
+		Size = options.size or options.Size or UDim2.new(1, 0, 0, 20),
 		Font = options.font or Enum.Font.Gotham,
 		Text = tostring(text or ""),
 		TextColor3 = options.color or Color3.new(1, 1, 1),
@@ -140,6 +150,18 @@ function LiquidGlassUI.new(options)
 		assert(player, "LiquidGlassUI.new requires options.parent outside a LocalPlayer context")
 		parent = player:WaitForChild("PlayerGui")
 	end
+	local guiName = options.name or "LiquidGlassUI"
+	if options.replaceExisting then
+		for _, existing in ipairs(parent:GetChildren()) do
+			if existing:IsA("ScreenGui") and existing.Name == guiName then existing:Destroy() end
+		end
+		local camera = Workspace.CurrentCamera
+		if camera then
+			for _, effect in ipairs(camera:GetChildren()) do
+				if effect:IsA("BlurEffect") and effect.Name == guiName .. "_BackdropBlur" then effect:Destroy() end
+			end
+		end
+	end
 
 	local window = setmetatable({
 		Theme = mergeTheme(options.theme),
@@ -156,18 +178,19 @@ function LiquidGlassUI.new(options)
 	}, LiquidGlassUI)
 
 	local screen = create("ScreenGui", {
-		Name = options.name or "LiquidGlassUI",
+		Name = guiName,
 		ResetOnSpawn = options.resetOnSpawn == true,
 		IgnoreGuiInset = true,
 		DisplayOrder = options.displayOrder or 150,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, parent)
 	window.Gui = screen
+	connect(window, screen.Destroying, function() window:Destroy(true) end)
 	local requestedBlur = options.blur
-	window._blurSize = requestedBlur == false and 0 or math.clamp(tonumber(requestedBlur) or 12, 0, 56)
+	window._blurSize = requestedBlur == false and 0 or math.clamp(tonumber(requestedBlur) or 8, 0, 56)
 	if window._blurSize > 0 then
 		local blur = Instance.new("BlurEffect")
-		blur.Name = "LiquidGlassUI_BackdropBlur"
+		blur.Name = guiName .. "_BackdropBlur"
 		blur.Size = 0
 		blur.Enabled = true
 		blur.Parent = Workspace.CurrentCamera
@@ -179,93 +202,78 @@ function LiquidGlassUI.new(options)
 		window._blurTween:Play()
 	end
 
-	local width = options.width or 700
-	local height = options.height or 490
+	local width = options.width or 740
+	local height = options.height or 560
 	local shell = create("Frame", {
 		Name = "GlassWindow",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = options.position or UDim2.fromScale(0.5, 0.5),
 		Size = options.size or UDim2.fromOffset(width, height),
-		BackgroundColor3 = window.Theme.glass,
-		BackgroundTransparency = 0.44,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = window.Theme.glassTransparency,
 		BorderSizePixel = 0,
 		ClipsDescendants = false,
 		ZIndex = 1,
 	}, screen)
 	window.Frame = shell
-	corner(shell, 20)
-	window.Outline = outline(shell, window.Theme.border, 0.32, 1.35)
-	window.GlowStroke = outline(shell, window.Theme.accent, 0.88, 4)
-	window.GlassGradient = gradient(shell, window.Theme.glassTop, window.Theme.glassBottom, 110, NumberSequence.new(0.38, 0.74))
+	corner(shell, 32)
+	window.Outline = outline(shell, window.Theme.border, 0.12, 1.3)
+	window.RimGradient = gradient(window.Outline, Color3.new(1, 1, 1), Color3.new(1, 1, 1), 35, NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(0.35, 0.76),
+		NumberSequenceKeypoint.new(0.65, 0.9), NumberSequenceKeypoint.new(1, 0.12),
+	}))
+	window.GlassGradient = gradient(shell, window.Theme.glassTop, window.Theme.glassBottom, 100, NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.04), NumberSequenceKeypoint.new(0.18, 0.23),
+		NumberSequenceKeypoint.new(0.65, 0.3), NumberSequenceKeypoint.new(1, 0.08),
+	}))
+	window.GlassGradient.Color = materialColors(window.Theme)
 	local shadow = create("Frame", {
 		Name = "GlassShadow",
 		Position = UDim2.fromOffset(0, 8),
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.48,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = 0,
 	}, shell)
-	corner(shadow, 20)
-	shadow.Parent = shell
-	shadow.ZIndex = 0
+	corner(shadow, 32)
+	outline(shadow, Color3.fromRGB(8, 17, 30), 0.93, 12)
 	window.Shadow = shadow
+	local innerRim = create("Frame", {
+		Name = "InnerLensEdge", Position = UDim2.fromOffset(2, 2),
+		Size = UDim2.new(1, -4, 1, -4), BackgroundTransparency = 1,
+		BorderSizePixel = 0, ZIndex = 2,
+	}, shell)
+	corner(innerRim, 30)
+	local innerStroke = outline(innerRim, Color3.new(1, 1, 1), 0.58, 1.2)
+	window.InnerRimGradient = gradient(innerStroke, Color3.new(1, 1, 1), Color3.new(1, 1, 1), 215, NumberSequence.new(0.1, 0.88))
 
 	local sheen = create("Frame", {
 		Name = "TopSheen",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 0, 100),
+		Position = UDim2.fromOffset(2, 2),
+		Size = UDim2.new(1, -4, 1, -4),
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.78,
+		BackgroundTransparency = 0.25,
 		BorderSizePixel = 0,
 		ZIndex = 2,
 	}, shell)
-	corner(sheen, 19)
-gradient(sheen, Color3.new(1, 1, 1), Color3.fromRGB(155, 190, 245), 90, NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 0.2),
-	NumberSequenceKeypoint.new(1, 1),
-}))
-window.Sheen = sheen
+	corner(sheen, 30)
+	window.ReflectionGradient = gradient(sheen, Color3.new(1, 1, 1), Color3.new(1, 1, 1), 105, NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.72), NumberSequenceKeypoint.new(0.22, 0.97),
+		NumberSequenceKeypoint.new(0.5, 1), NumberSequenceKeypoint.new(0.8, 0.98),
+		NumberSequenceKeypoint.new(1, 0.83),
+	}))
+	window.Sheen = sheen
 
 	local header = create("Frame", {
 		Name = "Header",
-		Position = UDim2.fromOffset(14, 10),
-		Size = UDim2.new(1, -28, 0, 46),
+		Position = UDim2.fromOffset(22, 18),
+		Size = UDim2.new(1, -44, 0, 46),
 		BackgroundTransparency = 1,
 		Active = true,
 		ClipsDescendants = true,
 		ZIndex = 4,
 	}, shell)
 	window.Header = header
-	local glint = create("Frame", {
-		Name = "SpecularGlint",
-		Position = UDim2.new(-0.3, 0, 0, 0),
-		Size = UDim2.new(0.28, 0, 1, 0),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.7,
-		BorderSizePixel = 0,
-		ZIndex = 4,
-	}, header)
-	corner(glint, 18)
-	create("UIGradient", {
-		Rotation = 0,
-		Color = ColorSequence.new(Color3.new(1, 1, 1), window.Theme.accent),
-		Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.45, 0.12),
-			NumberSequenceKeypoint.new(0.55, 0.12),
-			NumberSequenceKeypoint.new(1, 1),
-		}),
-	}, glint)
-	local glintTween
-	connect(window, header.MouseEnter, function()
-		if glintTween then glintTween:Cancel() end
-		glint.Position = UDim2.new(-0.3, 0, 0, 0)
-		glintTween = TweenService:Create(glint, TweenInfo.new(0.72, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(1.05, 0, 0, 0),
-		})
-		glintTween:Play()
-	end)
 	local brand = create("Frame", {
 		Name = "BrandMark",
 		Position = UDim2.fromOffset(0, 5),
@@ -282,14 +290,14 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		position = UDim2.fromOffset(45, 1),
 		size = UDim2.new(1, -130, 0, 23),
 		font = Enum.Font.GothamSemibold,
-		textSize = 15,
+		textSize = 19,
 		zIndex = 5,
 	})
 	window.SubtitleLabel = label(header, options.subtitle or "A translucent workspace", {
 		position = UDim2.fromOffset(45, 23),
 		size = UDim2.new(1, -130, 0, 17),
 		color = window.Theme.muted,
-		textSize = 10,
+		textSize = 12,
 		zIndex = 5,
 	})
 	window.CloseButton = create("TextButton", {
@@ -307,7 +315,7 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		TextColor3 = window.Theme.text,
 		ZIndex = 6,
 	}, header)
-	corner(window.CloseButton, 12)
+	corner(window.CloseButton, 17)
 	window.CloseOutline = outline(window.CloseButton, window.Theme.border, 0.58, 1)
 	window.CloseGradient = gradient(window.CloseButton, window.Theme.glassTop, window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	window.MinimizeButton = create("TextButton", {
@@ -325,14 +333,14 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		TextColor3 = window.Theme.text,
 		ZIndex = 6,
 	}, header)
-	corner(window.MinimizeButton, 12)
+	corner(window.MinimizeButton, 17)
 	window.MinimizeOutline = outline(window.MinimizeButton, window.Theme.border, 0.58, 1)
 	window.MinimizeGradient = gradient(window.MinimizeButton, window.Theme.glassTop, window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 
 	local separator = create("Frame", {
 		Name = "HeaderSeparator",
-		Position = UDim2.fromOffset(18, 60),
-		Size = UDim2.new(1, -36, 0, 1),
+		Position = UDim2.fromOffset(22, 92),
+		Size = UDim2.new(1, -44, 0, 1),
 		BackgroundColor3 = window.Theme.border,
 		BackgroundTransparency = 0.86,
 		BorderSizePixel = 0,
@@ -342,49 +350,60 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 
 	local body = create("Frame", {
 		Name = "Body",
-		Position = UDim2.fromOffset(14, 72),
-		Size = UDim2.new(1, -28, 1, -100),
+		Position = UDim2.fromOffset(16, 104),
+		Size = UDim2.new(1, -32, 1, -194),
 		BackgroundTransparency = 1,
 		ZIndex = 3,
 	}, shell)
 	window.Body = body
 	local nav = create("ScrollingFrame", {
 		Name = "Navigation",
-		Size = UDim2.new(0, 154, 1, 0),
-		BackgroundColor3 = window.Theme.background,
-		BackgroundTransparency = 0.6,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -18),
+		Size = UDim2.fromOffset(88, 56),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.46,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 2,
+		ScrollBarThickness = 0,
 		ScrollBarImageColor3 = window.Theme.accent,
 		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollingDirection = Enum.ScrollingDirection.X,
 		ZIndex = 3,
-	}, body)
-	corner(nav, 15)
-	window.NavOutline = outline(nav, window.Theme.border, 0.62, 1)
-	window.NavGradient = gradient(nav, window.Theme.glassTop, window.Theme.glassBottom, 100, NumberSequence.new(0.68, 0.86))
+	}, shell)
+	corner(nav, 28)
+	window.NavOutline = outline(nav, window.Theme.border, 0.2, 1.2)
+	window.NavGradient = gradient(nav, window.Theme.glassTop, window.Theme.glassBottom, 100, NumberSequence.new(0.1, 0.4))
 	window.Navigation = nav
 	create("UIPadding", {
-		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11),
-		PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9),
+		PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8),
 	}, nav)
 	window.NavLayout = create("UIListLayout", {
 		Padding = UDim.new(0, 6),
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, nav)
+	local function layoutNavigation()
+		local canvasWidth = window.NavLayout.AbsoluteContentSize.X + 16
+		local maximum = math.max(88, shell.AbsoluteSize.X - 40)
+		nav.Size = UDim2.fromOffset(math.min(maximum, math.max(88, canvasWidth)), 56)
+		nav.CanvasSize = UDim2.fromOffset(canvasWidth, 0)
+	end
+	connect(window, window.NavLayout:GetPropertyChangedSignal("AbsoluteContentSize"), layoutNavigation)
+	connect(window, shell:GetPropertyChangedSignal("AbsoluteSize"), layoutNavigation)
 	local content = create("Frame", {
 		Name = "Content",
-		Position = UDim2.new(0, 166, 0, 0),
-		Size = UDim2.new(1, -166, 1, 0),
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		ZIndex = 3,
 	}, body)
 	window.Content = content
 
 	local footer = label(shell, options.footer or "LIQUID GLASS  ·  READY", {
-		position = UDim2.new(0, 19, 1, -22),
-		size = UDim2.new(1, -38, 0, 14),
+		position = UDim2.fromOffset(23, 74),
+		size = UDim2.new(1, -46, 0, 14),
 		color = window.Theme.muted,
 		textSize = 9,
 		zIndex = 4,
@@ -393,24 +412,26 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 
 	themeBinding(window, function()
 		if not shell.Parent then return end
-		shell.BackgroundColor3 = window.Theme.glass
+		shell.BackgroundColor3 = Color3.new(1, 1, 1)
+		shell.BackgroundTransparency = window.Theme.glassTransparency
 		window.Outline.Color = window.Theme.border
-		window.GlowStroke.Color = window.Theme.accent
-		window.GlassGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
+		window.GlassGradient.Color = materialColors(window.Theme)
 		window.BrandMark.BackgroundColor3 = window.Theme.accent
 		window.BrandGradient.Color = ColorSequence.new(window.Theme.accent, window.Theme.accentSecondary)
 		window.TitleLabel.TextColor3 = window.Theme.text
 		window.SubtitleLabel.TextColor3 = window.Theme.muted
 		window.CloseButton.TextColor3 = window.Theme.text
 		window.MinimizeButton.TextColor3 = window.Theme.text
+		window.CloseButton.BackgroundColor3 = window.Theme.control
+		window.MinimizeButton.BackgroundColor3 = window.Theme.control
 		window.CloseOutline.Color = window.Theme.border
 		window.MinimizeOutline.Color = window.Theme.border
 		window.CloseGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
 		window.MinimizeGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
 		window.HeaderSeparator.BackgroundColor3 = window.Theme.border
-		window.Navigation.BackgroundColor3 = window.Theme.background
+		window.Navigation.BackgroundColor3 = Color3.new(1, 1, 1)
 		window.NavOutline.Color = window.Theme.border
-		window.NavGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
+		window.NavGradient.Color = materialColors(window.Theme)
 		window.Navigation.ScrollBarImageColor3 = window.Theme.accent
 		window.Footer.TextColor3 = window.Theme.muted
 	end)
@@ -422,6 +443,16 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		end
 	end)
 	connect(window, UserInputService.InputChanged, function(input)
+		if window._visible and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local point = UserInputService:GetMouseLocation() - shell.AbsolutePosition
+			local size = shell.AbsoluteSize
+			if size.X > 0 and size.Y > 0 and point.X >= 0 and point.Y >= 0 and point.X <= size.X and point.Y <= size.Y then
+				local x, y = point.X / size.X - 0.5, point.Y / size.Y - 0.5
+				window.RimGradient.Rotation = 35 + x * 40 + y * 24
+				window.InnerRimGradient.Rotation = 215 + x * 40 + y * 24
+				window.ReflectionGradient.Offset = Vector2.new(x * 0.12, y * 0.06)
+			end
+		end
 		if dragStart and dragOrigin and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
 			shell.Position = UDim2.new(dragOrigin.X.Scale, dragOrigin.X.Offset + delta.X, dragOrigin.Y.Scale, dragOrigin.Y.Offset + delta.Y)
@@ -486,7 +517,7 @@ function LiquidGlassUI:SetBlur(amount)
 	self._blurSize = math.clamp(tonumber(amount) or 0, 0, 56)
 	if self._blurSize > 0 and not self._blurEffect then
 		local blur = Instance.new("BlurEffect")
-		blur.Name = "LiquidGlassUI_BackdropBlur"
+		blur.Name = self.Gui.Name .. "_BackdropBlur"
 		blur.Size = 0
 		blur.Parent = Workspace.CurrentCamera
 		self._blurEffect = blur
@@ -512,9 +543,10 @@ end
 function LiquidGlassUI:SetMinimized(minimized)
 	self._minimized = minimized == true
 	self.Body.Visible = not self._minimized
+	self.Navigation.Visible = not self._minimized
 	self.HeaderSeparator.Visible = not self._minimized
 	self.Footer.Visible = not self._minimized
-	self.Frame.Size = self._minimized and UDim2.new(self._savedSize.X.Scale, self._savedSize.X.Offset, 0, 66) or self._savedSize
+	self.Frame.Size = self._minimized and UDim2.new(self._savedSize.X.Scale, self._savedSize.X.Offset, 0, 82) or self._savedSize
 	return self._minimized
 end
 
@@ -531,7 +563,7 @@ function LiquidGlassUI:AddTab(name, iconText)
 	local order = #self.Tabs + 1
 	local button = create("TextButton", {
 		Name = "Nav_" .. tab.Name,
-		Size = UDim2.new(1, 0, 0, 36),
+		Size = UDim2.fromOffset(config.width or 134, 40),
 		BackgroundColor3 = self.Theme.control,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -540,10 +572,12 @@ function LiquidGlassUI:AddTab(name, iconText)
 		LayoutOrder = order,
 		ZIndex = 4,
 	}, self.Navigation)
-	corner(button, 11)
+	corner(button, 20)
+	local tabOutline = outline(button, self.Theme.border, 1, 1)
+	local tabGradient = gradient(button, self.Theme.glassTop, self.Theme.glassBottom, 90, NumberSequence.new(0.18, 0.65))
 	local icon = label(button, tab.IconText or string.upper(string.sub(tab.Name, 1, 1)), {
 		position = UDim2.fromOffset(9, 0),
-		size = UDim2.fromOffset(22, 36),
+		size = UDim2.fromOffset(22, 40),
 		font = Enum.Font.GothamSemibold,
 		textSize = 12,
 		align = Enum.TextXAlignment.Center,
@@ -553,7 +587,7 @@ function LiquidGlassUI:AddTab(name, iconText)
 		position = UDim2.fromOffset(39, 0),
 		size = UDim2.new(1, -48, 1, 0),
 		font = Enum.Font.GothamMedium,
-		textSize = 11,
+		textSize = 13,
 		zIndex = 5,
 	})
 	local page = create("ScrollingFrame", {
@@ -582,8 +616,11 @@ function LiquidGlassUI:AddTab(name, iconText)
 	}, page)
 	local function refreshTheme()
 		local selected = self.ActiveTab == tab
-		button.BackgroundColor3 = selected and self.Theme.accent or self.Theme.control
-		button.BackgroundTransparency = selected and 0.7 or 1
+		button.BackgroundColor3 = self.Theme.control
+		button.BackgroundTransparency = selected and 0.24 or 1
+		tabOutline.Color = self.Theme.border
+		tabOutline.Transparency = selected and 0.2 or 1
+		tabGradient.Color = materialColors(self.Theme)
 		icon.TextColor3 = selected and self.Theme.accent or self.Theme.muted
 		nameLabel.TextColor3 = selected and self.Theme.text or self.Theme.muted
 		page.BackgroundColor3 = self.Theme.background
@@ -628,14 +665,14 @@ function Tab:AddSection(name, options)
 		Name = "Section_" .. section.Name,
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = self._window.Theme.glass,
-		BackgroundTransparency = 0.5,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.74,
 		BorderSizePixel = 0,
 		ZIndex = 4,
 	}, self.Page)
-	corner(card, 15)
-	section.Outline = outline(card, self._window.Theme.border, 0.56, 1)
-	section.GlassGradient = gradient(card, self._window.Theme.glassTop, self._window.Theme.glassBottom, 100, NumberSequence.new(0.5, 0.84))
+	corner(card, 22)
+	section.Outline = outline(card, self._window.Theme.border, 0.74, 1)
+	section.GlassGradient = gradient(card, self._window.Theme.glassTop, self._window.Theme.glassBottom, 100, NumberSequence.new(0.28, 0.64))
 	create("UIPadding", {
 		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11),
 		PaddingLeft = UDim.new(0, 13), PaddingRight = UDim.new(0, 13),
@@ -658,9 +695,9 @@ function Tab:AddSection(name, options)
 	section.Frame, section.Title, section.Content = card, title, content
 	function section:RefreshTheme()
 		if not self.Frame.Parent then return end
-		self.Frame.BackgroundColor3 = self._window.Theme.glass
+		self.Frame.BackgroundColor3 = Color3.new(1, 1, 1)
 		self.Outline.Color = self._window.Theme.border
-		self.GlassGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
+		self.GlassGradient.Color = materialColors(self._window.Theme)
 		self.Title.TextColor3 = self._window.Theme.text
 		for _, control in ipairs(self._controls) do
 			if type(control.RefreshTheme) == "function" then control:RefreshTheme() end
@@ -693,7 +730,7 @@ function Section:Label(value)
 	local options = asOptions(value)
 	local text = options.name or options.text or "Label"
 	local row = makeRow(self, options.height or 22, "LabelRow")
-	local textLabel = label(row, text, { size = UDim2.fromScale(1, 1), textSize = options.textSize or 11, color = self._window.Theme.muted, zIndex = 6 })
+	local textLabel = label(row, text, { size = UDim2.fromScale(1, 1), textSize = options.textSize or 13, color = self._window.Theme.muted, zIndex = 6 })
 	local handle = makeHandle(self, text, row)
 	handle.Label = textLabel
 	function handle:Set(textValue) self.Label.Text = tostring(textValue or "") end
@@ -720,21 +757,21 @@ end
 function Section:Button(value)
 	local options = asOptions(value)
 	local name = options.name or options.text or "Button"
-	local row = makeRow(self, options.height or 36, "ButtonRow")
+	local row = makeRow(self, options.height or 42, "ButtonRow")
 	local button = create("TextButton", {
 		Name = "Button",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = self._window.Theme.control,
-		BackgroundTransparency = 0.46,
+		BackgroundTransparency = self._window.Theme.controlTransparency,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Text = tostring(name),
 		Font = Enum.Font.GothamMedium,
-		TextSize = 11,
+		TextSize = 13,
 		TextColor3 = self._window.Theme.text,
 		ZIndex = 6,
 	}, row)
-	corner(button, 11)
+	corner(button, 21)
 	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
 	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.45, 0.88))
 	local handle = makeHandle(self, name, row)
@@ -742,6 +779,7 @@ function Section:Button(value)
 	function handle:RefreshTheme()
 		if button.Parent then
 			button.BackgroundColor3 = self._window.Theme.control
+			button.BackgroundTransparency = self._window.Theme.controlTransparency
 			button.TextColor3 = self._window.Theme.text
 			buttonOutline.Color = self._window.Theme.border
 			buttonGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
@@ -758,9 +796,9 @@ end
 function Section:Toggle(value)
 	local options = asOptions(value)
 	local name = options.name or "Toggle"
-	local row = makeRow(self, 34, "ToggleRow")
+	local row = makeRow(self, 42, "ToggleRow")
 	local hitbox = create("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 5 }, row)
-	local textLabel = label(row, name, { Size = UDim2.new(1, -66, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
+	local textLabel = label(row, name, { Size = UDim2.new(1, -66, 1, 0), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
 	local track = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(42, 23),
 		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.28, BorderSizePixel = 0, ZIndex = 7,
@@ -770,7 +808,7 @@ function Section:Toggle(value)
 	local trackGradient = gradient(track, self._window.Theme.control, self._window.Theme.glassTop, 90, NumberSequence.new(0.48, 0.86))
 	local knob = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 3, 0.5, 0), Size = UDim2.fromOffset(17, 17),
-		BackgroundColor3 = self._window.Theme.text, BorderSizePixel = 0, ZIndex = 8,
+		BackgroundColor3 = self._window.Theme.glassTop, BorderSizePixel = 0, ZIndex = 8,
 	}, track)
 	corner(knob, 9)
 	local knobOutline = outline(knob, self._window.Theme.border, 0.48, 1)
@@ -786,7 +824,7 @@ function Section:Toggle(value)
 		trackOutline.Color = self._window.Theme.border
 		trackGradient.Color = self.Value and ColorSequence.new(self._window.Theme.accent, self._window.Theme.accentSecondary)
 			or ColorSequence.new(self._window.Theme.control, self._window.Theme.glassTop)
-		knob.BackgroundColor3 = self._window.Theme.text
+		knob.BackgroundColor3 = self._window.Theme.glassTop
 		knobOutline.Color = self._window.Theme.border
 		knob.Position = self.Value and UDim2.new(1, -20, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
 		textLabel.TextColor3 = self._window.Theme.text
@@ -809,8 +847,8 @@ function Section:Slider(value)
 	local minimum, maximum = tonumber(options.min) or 0, tonumber(options.max) or 100
 	if maximum < minimum then minimum, maximum = maximum, minimum end
 	local row = makeRow(self, 45, "SliderRow")
-	local textLabel = label(row, name, { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, -70, 0, 19), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
-	local valueLabel = label(row, "", { Position = UDim2.new(1, -65, 0, 0), Size = UDim2.fromOffset(65, 19), textSize = 10, color = self._window.Theme.muted, align = Enum.TextXAlignment.Right, zIndex = 6 })
+	local textLabel = label(row, name, { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, -70, 0, 19), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
+	local valueLabel = label(row, "", { Position = UDim2.new(1, -65, 0, 0), Size = UDim2.fromOffset(65, 19), textSize = 12, color = self._window.Theme.muted, align = Enum.TextXAlignment.Right, zIndex = 6 })
 	local track = create("TextButton", {
 		Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 7),
 		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.3, BorderSizePixel = 0, AutoButtonColor = false,
@@ -824,7 +862,7 @@ function Section:Slider(value)
 	local fillGradient = gradient(fill, self._window.Theme.accent, self._window.Theme.accentSecondary, 0, NumberSequence.new(0.05, 0.38))
 	local knob = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.fromOffset(13, 13),
-		BackgroundColor3 = self._window.Theme.text, BorderSizePixel = 0, ZIndex = 8,
+		BackgroundColor3 = self._window.Theme.glassTop, BorderSizePixel = 0, ZIndex = 8,
 	}, track)
 	corner(knob, 7)
 	local knobOutline = outline(knob, self._window.Theme.border, 0.4, 1)
@@ -838,7 +876,7 @@ function Section:Slider(value)
 		if not row.Parent then return end
 		fill.BackgroundColor3 = self._window.Theme.accent
 		fillGradient.Color = ColorSequence.new(self._window.Theme.accent, self._window.Theme.accentSecondary)
-		knob.BackgroundColor3 = self._window.Theme.text
+		knob.BackgroundColor3 = self._window.Theme.glassTop
 		knobOutline.Color = self._window.Theme.border
 		track.BackgroundColor3 = self._window.Theme.control
 		trackOutline.Color = self._window.Theme.border
@@ -889,28 +927,29 @@ function Section:Dropdown(value)
 	local options = asOptions(value)
 	local name = options.name or "Dropdown"
 	local items = options.items or options.values or {}
-	local row = create("Frame", { Name = "DropdownRow", Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, ZIndex = 5 }, self.Content)
-	local main = create("Frame", { Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, ZIndex = 5 }, row)
-	local nameLabel = label(main, name, { Size = UDim2.new(0.47, -4, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
+	local row = create("Frame", { Name = "DropdownRow", Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, ZIndex = 5 }, self.Content)
+	local main = create("Frame", { Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, ZIndex = 5 }, row)
+	local nameLabel = label(main, name, { Size = UDim2.new(0.47, -4, 1, 0), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
 	local choice = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0.53, 0, 0, 30),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = self._window.Theme.controlTransparency, BorderSizePixel = 0,
 		AutoButtonColor = false, Text = "", ZIndex = 6,
 	}, main)
-	corner(choice, 10)
+	corner(choice, 15)
 	local choiceOutline = outline(choice, self._window.Theme.border, 0.58, 1)
 	local choiceGradient = gradient(choice, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	local handle = makeHandle(self, name, row)
 	handle.Items = items
 	handle.Value = options.default or items[1]
 	handle.Callback = options.callback
-	local choiceLabel = label(choice, tostring(handle.Value or "Select"), { Position = UDim2.fromOffset(9, 0), Size = UDim2.new(1, -27, 1, 0), textSize = 10, color = self._window.Theme.text, zIndex = 7 })
+	local choiceLabel = label(choice, tostring(handle.Value or "Select"), { Position = UDim2.fromOffset(9, 0), Size = UDim2.new(1, -27, 1, 0), textSize = 12, color = self._window.Theme.text, zIndex = 7 })
 	local arrow = label(choice, "⌄", { Position = UDim2.new(1, -23, 0, 0), Size = UDim2.fromOffset(17, 30), textSize = 14, color = self._window.Theme.muted, align = Enum.TextXAlignment.Center, zIndex = 7 })
-	local list = create("Frame", { Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 8 }, row)
+	local list = create("Frame", { Position = UDim2.fromOffset(0, 46), Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 8 }, row)
 	local listLayout = create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 	local expanded = false
 	local function updateTheme()
 		choice.BackgroundColor3 = self._window.Theme.control
+		choice.BackgroundTransparency = self._window.Theme.controlTransparency
 		nameLabel.TextColor3 = self._window.Theme.text
 		choiceOutline.Color = self._window.Theme.border
 		choiceGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
@@ -920,6 +959,8 @@ function Section:Dropdown(value)
 			if itemButton:IsA("TextButton") then
 				itemButton.BackgroundColor3 = self._window.Theme.control
 				itemButton.TextColor3 = self._window.Theme.text
+				local itemGradient = itemButton:FindFirstChildOfClass("UIGradient")
+				if itemGradient then itemGradient.Color = materialColors(self._window.Theme) end
 			end
 		end
 	end
@@ -928,7 +969,7 @@ function Section:Dropdown(value)
 		choiceLabel.Text = tostring(nextValue or "Select")
 		list.Visible = false
 		expanded = false
-		row.Size = UDim2.new(1, 0, 0, 36)
+		row.Size = UDim2.new(1, 0, 0, 42)
 		if not silent then invoke(handle.Callback, handle.Value, handle) end
 	end
 	function handle:Set(nextValue, silent) set(nextValue, silent) return handle.Value end
@@ -942,7 +983,7 @@ function Section:Dropdown(value)
 				Name = "Option_" .. tostring(index), Size = UDim2.new(1, 0, 0, 28),
 				BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.38,
 				BorderSizePixel = 0, AutoButtonColor = false, Text = tostring(item),
-				Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text,
+				Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = self._window.Theme.text,
 				ZIndex = 9, LayoutOrder = index,
 			}, list)
 			corner(itemButton, 9)
@@ -954,7 +995,7 @@ function Section:Dropdown(value)
 	connect(self._window, choice.Activated, function()
 		expanded = not expanded
 		list.Visible = expanded
-		row.Size = UDim2.new(1, 0, 0, expanded and (38 + list.Size.Y.Offset) or 36)
+		row.Size = UDim2.new(1, 0, 0, expanded and (46 + list.Size.Y.Offset) or 42)
 	end)
 	connect(self._window, self._window.Gui:GetPropertyChangedSignal("Enabled"), function() if not self._window.Gui.Enabled then list.Visible = false; expanded = false end end)
 	handle.RefreshTheme = updateTheme
@@ -966,16 +1007,16 @@ end
 function Section:Textbox(value)
 	local options = asOptions(value)
 	local name = options.name or "Textbox"
-	local row = makeRow(self, 36, "TextboxRow")
-	local nameLabel = label(row, name, { Size = UDim2.new(0.44, 0, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
+	local row = makeRow(self, 42, "TextboxRow")
+	local nameLabel = label(row, name, { Size = UDim2.new(0.44, 0, 1, 0), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
 	local box = create("TextBox", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0.54, 0, 0, 30),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = self._window.Theme.controlTransparency, BorderSizePixel = 0,
 		ClearTextOnFocus = false, Text = tostring(options.default or ""), PlaceholderText = options.placeholder or "Enter text",
-		Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text, PlaceholderColor3 = self._window.Theme.muted,
+		Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = self._window.Theme.text, PlaceholderColor3 = self._window.Theme.muted,
 		TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
 	}, row)
-	corner(box, 9)
+	corner(box, 15)
 	local boxOutline = outline(box, self._window.Theme.border, 0.58, 1)
 	local boxGradient = gradient(box, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.5, 0.9))
 	create("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 8) }, box)
@@ -993,6 +1034,7 @@ function Section:Textbox(value)
 	function handle:RefreshTheme()
 		if box.Parent then
 			box.BackgroundColor3 = self._window.Theme.control
+			box.BackgroundTransparency = self._window.Theme.controlTransparency
 			box.TextColor3 = self._window.Theme.text
 			box.PlaceholderColor3 = self._window.Theme.muted
 			boxOutline.Color = self._window.Theme.border
@@ -1010,15 +1052,15 @@ end
 function Section:Keybind(value)
 	local options = asOptions(value)
 	local name = options.name or "Keybind"
-	local row = makeRow(self, 34, "KeybindRow")
-	local nameLabel = label(row, name, { Size = UDim2.new(1, -105, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
+	local row = makeRow(self, 42, "KeybindRow")
+	local nameLabel = label(row, name, { Size = UDim2.new(1, -105, 1, 0), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
 	local button = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(94, 28),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
-		AutoButtonColor = false, Text = "", Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = self._window.Theme.controlTransparency, BorderSizePixel = 0,
+		AutoButtonColor = false, Text = "", Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = self._window.Theme.text,
 		ZIndex = 6,
 	}, row)
-	corner(button, 9)
+	corner(button, 14)
 	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
 	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	local handle = makeHandle(self, name, row)
@@ -1036,6 +1078,7 @@ function Section:Keybind(value)
 	function handle:RefreshTheme()
 		if button.Parent then
 			button.BackgroundColor3 = self._window.Theme.control
+			button.BackgroundTransparency = self._window.Theme.controlTransparency
 			button.TextColor3 = self._window.Theme.text
 			buttonOutline.Color = self._window.Theme.border
 			buttonGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
@@ -1052,7 +1095,7 @@ function Section:Colorpicker(value)
 	local options = asOptions(value)
 	local name = options.name or "Color"
 	local row = makeRow(self, 35, "ColorpickerRow")
-	local nameLabel = label(row, name, { Size = UDim2.new(1, -70, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
+	local nameLabel = label(row, name, { Size = UDim2.new(1, -70, 1, 0), textSize = 13, color = self._window.Theme.text, zIndex = 6 })
 	local swatch = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(48, 24),
 		BackgroundColor3 = options.color or Color3.fromRGB(131, 199, 255), BackgroundTransparency = 1 - (options.alpha or 1),
@@ -1094,7 +1137,8 @@ function Section:Colorpicker(value)
 		local refs = self._popupRefs
 		if refs and refs.Frame.Parent then
 			refs.Outline.Color = self._window.Theme.border
-			refs.Gradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
+			refs.Frame.BackgroundColor3 = Color3.new(1, 1, 1)
+			refs.Gradient.Color = materialColors(self._window.Theme)
 			refs.Title.TextColor3 = self._window.Theme.text
 			refs.Opacity.TextColor3 = self._window.Theme.muted
 			refs.Hex.TextColor3 = self._window.Theme.text
@@ -1117,7 +1161,7 @@ function Section:Colorpicker(value)
 		local popup = create("Frame", {
 			Name = "ColorPickerGlass",
 			Size = UDim2.fromOffset(226, 205),
-			BackgroundColor3 = self._window.Theme.glass,
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			BackgroundTransparency = 0.36,
 			BorderSizePixel = 0,
 			ZIndex = 40,
@@ -1130,7 +1174,7 @@ function Section:Colorpicker(value)
 		local x = math.clamp(pos.X - 178, 8, math.max(8, view.X - 234))
 		local y = math.clamp(pos.Y + 30, 8, math.max(8, view.Y - 213))
 		popup.Position = UDim2.fromOffset(x, y)
-		local popupTitle = label(popup, name, { Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 0, 22), textSize = 10, font = Enum.Font.GothamSemibold, color = self._window.Theme.text, zIndex = 42 })
+		local popupTitle = label(popup, name, { Position = UDim2.fromOffset(12, 5), Size = UDim2.new(1, -24, 0, 22), textSize = 12, font = Enum.Font.GothamSemibold, color = self._window.Theme.text, zIndex = 42 })
 		local square = create("TextButton", {
 			Name = "SaturationValue", Position = UDim2.fromOffset(12, 33), Size = UDim2.fromOffset(155, 112),
 			BackgroundColor3 = Color3.fromHSV(hue, 1, 1), BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 42,
@@ -1139,7 +1183,7 @@ function Section:Colorpicker(value)
 		local white = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 43 }, square)
 		corner(white, 8)
 		local whiteGradient = gradient(white, Color3.new(1, 1, 1), Color3.fromHSV(hue, 1, 1), 0, NumberSequence.new(0, 0))
-		local black = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 44 }, square)
+		local black = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 44 }, square)
 		corner(black, 8)
 		gradient(black, Color3.new(0, 0, 0), Color3.new(0, 0, 0), 90, NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) }))
 		local marker = create("Frame", {
@@ -1255,18 +1299,19 @@ function LiquidGlassUI:Notify(message, duration, kind)
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -18, 1, 70),
 		Size = UDim2.fromOffset(290, 58),
-		BackgroundColor3 = theme.glass,
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 0.34,
 		BorderSizePixel = 0,
 		ZIndex = 100,
 	}, self.Gui)
 	corner(toast, 15)
 	outline(toast, theme.border, 0.32, 1.2)
-	gradient(toast, theme.glassTop, theme.glassBottom, 100, NumberSequence.new(0.24, 0.56))
+	local toastGradient = gradient(toast, theme.glassTop, theme.glassBottom, 100, NumberSequence.new(0.24, 0.56))
+	toastGradient.Color = materialColors(theme)
 	local tint = kind == "success" and theme.positive or (kind == "error" and theme.negative or theme.accent)
 	local accentBar = create("Frame", { Position = UDim2.fromOffset(10, 11), Size = UDim2.fromOffset(3, 36), BackgroundColor3 = tint, BorderSizePixel = 0, ZIndex = 102 }, toast)
 	corner(accentBar, 2)
-	label(toast, tostring(message or ""), { Position = UDim2.fromOffset(22, 8), Size = UDim2.new(1, -32, 1, -16), textSize = 11, color = theme.text, wrapped = true, zIndex = 102 })
+	label(toast, tostring(message or ""), { Position = UDim2.fromOffset(22, 8), Size = UDim2.new(1, -32, 1, -16), textSize = 13, color = theme.text, wrapped = true, zIndex = 102 })
 	TweenService:Create(toast, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(1, -18, 1, -18) }):Play()
 	task.delay(duration or 3, function()
 		if toast.Parent then
@@ -1279,7 +1324,7 @@ function LiquidGlassUI:Notify(message, duration, kind)
 	return toast
 end
 
-function LiquidGlassUI:Destroy()
+function LiquidGlassUI:Destroy(fromGui)
 	if self._destroyed then return end
 	self._destroyed = true
 	if self._blurTween then self._blurTween:Cancel() end
@@ -1292,7 +1337,7 @@ function LiquidGlassUI:Destroy()
 	for _, connection in ipairs(self._connections) do connection:Disconnect() end
 	table.clear(self._connections)
 	table.clear(self._themeUpdaters)
-	if self.Gui and self.Gui.Parent then self.Gui:Destroy() end
+	if not fromGui and self.Gui and self.Gui.Parent then self.Gui:Destroy() end
 end
 
 LiquidGlassUI.window = LiquidGlassUI.new
