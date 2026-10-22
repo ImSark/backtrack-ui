@@ -744,4 +744,16 @@ local outputLog = outputSection:Output({ name = "", height = 182 })
 outputSection:ButtonHolder({})
 outputSection:Button({ name = "Clear Output", confirm = true, callback = function() outputLog:Clear() end })
 
-menu:CreateDock({ icon = "main" })
+local luaModuleManager = menu:CreateLuaModuleManager()
+local dock = menu:CreateDock({
+	position = UDim2.new(0.5, 0, 1, -120),
+	buttonSize = 25,
+	spacing = 5,
+	padding = 4,
+})
+dock:AddWindow("Main", menu, "main")
+dock:AddPanel(sourceStyle)
+dock:AddPanel(configPanel)
+dock:AddPanel(playerlistPanel)
+dock:AddPanel(outputPanel)
+dock:AddPanel(luaModuleManager.Panel, { name = "Lua Modules", icon = "lua" })

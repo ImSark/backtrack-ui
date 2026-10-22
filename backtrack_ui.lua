@@ -11,7 +11,7 @@ BacktrackUI.__index = BacktrackUI
 local createSection
 local Column
 
-BacktrackUI.Version = "1.5.7"
+BacktrackUI.Version = "1.5.8"
 BacktrackUI.Theme = {
 	outline = Color3.fromRGB(10, 10, 10),
 	inline = Color3.fromRGB(34, 34, 34),
@@ -131,8 +131,9 @@ local function label(parent, text, theme, options)
 		Font = options.font or Enum.Font.Legacy,
 		Text = tostring(text or ""),
 		TextColor3 = options.color or theme.text,
-		TextStrokeColor3 = theme.text_outline,
+		TextStrokeColor3 = options.textStrokeColor or theme.text_outline,
 		TextStrokeTransparency = options.textStrokeTransparency or 1,
+		TextTransparency = options.textTransparency or 0,
 		TextSize = options.textSize or 12,
 		TextXAlignment = options.align or Enum.TextXAlignment.Left,
 		TextYAlignment = options.valign or Enum.TextYAlignment.Center,
@@ -185,9 +186,9 @@ local function sourceActionButton(parent, text, theme, options)
 	options = options or {}
 	local control = create("TextButton", {
 		Name = options.name or "Button",
-		AutoButtonColor = false,
-		BackgroundColor3 = theme.outline,
-		BorderSizePixel = 0,
+		AutoButtonColor = options.autoButtonColor == true,
+		BackgroundColor3 = options.buttonColor or options.backgroundColor or theme.outline,
+		BorderSizePixel = options.borderSizePixel or 0,
 		Position = options.position or UDim2.new(),
 		Size = options.size or UDim2.new(1, 0, 0, 18),
 		Text = "",
@@ -195,29 +196,30 @@ local function sourceActionButton(parent, text, theme, options)
 	}, parent)
 	local inline = create("Frame", {
 		Name = "Inline",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = theme.inline,
+		Position = options.inlinePosition or UDim2.fromOffset(1, 1),
+		Size = options.inlineSize or UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = options.inlineColor or theme.inline,
 		BorderSizePixel = 0,
 		ZIndex = control.ZIndex + 1,
 	}, control)
 	local accent = create("Frame", {
 		Name = "Accent",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = theme.accent,
+		Position = options.accentPosition or UDim2.fromOffset(1, 1),
+		Size = options.accentSize or UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = options.accentColor or theme.accent,
 		BorderSizePixel = 0,
 		ZIndex = control.ZIndex + 1,
 	}, inline)
-	gradient(accent, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167))
+	gradient(accent, options.accentTopColor or Color3.fromRGB(255, 255, 255), options.accentBottomColor or Color3.fromRGB(167, 167, 167))
 	local face = create("Frame", {
 		Name = "Face",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = theme.contrastTop,
+		Position = options.surfacePosition or UDim2.new(),
+		Size = options.surfaceSize or UDim2.fromScale(1, 1),
+		BackgroundColor3 = options.surfaceColor or theme.contrastTop,
 		BorderSizePixel = 0,
 		ZIndex = control.ZIndex + 1,
 	}, accent)
-	gradient(face, theme.contrastTop, theme.contrastBottom)
+	gradient(face, options.surfaceColor or theme.contrastTop, options.surfaceBottomColor or theme.contrastBottom)
 	local title = label(face, text, theme, {
 		name = "Title",
 		position = UDim2.new(0, 4, 0, -1),
@@ -225,6 +227,10 @@ local function sourceActionButton(parent, text, theme, options)
 		textSize = options.textSize or 12,
 		align = options.align or Enum.TextXAlignment.Center,
 		color = options.textColor or theme.text,
+		textStrokeColor = options.textStrokeColor,
+		textStrokeTransparency = options.textStrokeTransparency,
+		textTransparency = options.textTransparency,
+		font = options.font,
 		wrapped = true,
 		truncate = true,
 		zIndex = control.ZIndex + 2,
@@ -233,17 +239,23 @@ local function sourceActionButton(parent, text, theme, options)
 	local fill = create("Frame", {
 		Name = "HoverFill",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = theme.accent,
+		BackgroundColor3 = options.hoverColor or theme.accent,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ZIndex = control.ZIndex + 1,
 	}, accent)
 	gradient(fill, Color3.fromRGB(255, 255, 255), Color3.fromRGB(117, 117, 117))
 	control.MouseEnter:Connect(function()
-		TweenService:Create(fill, TweenInfo.new(0.12), { BackgroundTransparency = 0.15 }):Play()
+		if options.hover ~= false then
+			TweenService:Create(fill, TweenInfo.new(options.hoverDuration or 0.12), {
+				BackgroundTransparency = options.hoverTransparency or 0.15,
+			}):Play()
+		end
 	end)
 	control.MouseLeave:Connect(function()
-		TweenService:Create(fill, TweenInfo.new(0.12), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(fill, TweenInfo.new(options.hoverDuration or 0.12), {
+			BackgroundTransparency = options.restTransparency or 1,
+		}):Play()
 	end)
 	return control
 end
@@ -382,10 +394,10 @@ function BacktrackUI.new(options)
 
 	self.Gui = create("ScreenGui", {
 		Name = options.name or "BacktrackUI",
-		ResetOnSpawn = false,
-		IgnoreGuiInset = true,
+		ResetOnSpawn = options.resetOnSpawn == true,
+		IgnoreGuiInset = options.ignoreGuiInset ~= false,
 		DisplayOrder = options.displayOrder or 100,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		ZIndexBehavior = options.zIndexBehavior or Enum.ZIndexBehavior.Sibling,
 	}, parent)
 	GuiThemes[self.Gui] = self.Theme
 
@@ -398,13 +410,14 @@ function BacktrackUI.new(options)
 	end
 
 	self.Outer = create("Frame", {
-		Name = "WindowOutline",
+		Name = options.windowObjectName or "WindowOutline",
 		AnchorPoint = options.anchorPoint or Vector2.new(0.5, 0.5),
 		Position = options.position or UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(width, height),
-		BackgroundColor3 = self.Theme.outline,
-		BorderSizePixel = 0,
-		ClipsDescendants = false,
+		Size = typeof(initialSize) == "UDim2" and initialSize or UDim2.fromOffset(width, height),
+		BackgroundColor3 = options.outlineColor or self.Theme.outline,
+		BackgroundTransparency = options.outlineTransparency or 0,
+		BorderSizePixel = options.borderSizePixel or 0,
+		ClipsDescendants = options.clipsDescendants == true,
 	}, self.Gui)
 	local glowImage = self.Images.glow4 or self.Images.glow
 	if glowImage then
@@ -423,9 +436,9 @@ function BacktrackUI.new(options)
 	end
 	self.AccentFrame = create("Frame", {
 		Name = "PinkInline",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = self.Theme.accent,
+		Position = options.accentFramePosition or UDim2.fromOffset(1, 1),
+		Size = options.accentFrameSize or UDim2.new(1, -2, 1, -2),
+		BackgroundColor3 = options.accentColor or self.Theme.accent,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 	}, self.Outer)
@@ -441,34 +454,39 @@ function BacktrackUI.new(options)
 	gradient(self.Body, self.Theme.contrastTop, self.Theme.contrastBottom)
 
 	self.Header = create("Frame", {
-		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 18),
-		BackgroundTransparency = 1,
+		Name = options.headerName or "Header",
+		Position = options.headerPosition or UDim2.new(),
+		Size = options.headerSize or UDim2.new(1, 0, 0, options.headerHeight or 18),
+		BackgroundColor3 = options.headerColor or self.Theme.background,
+		BackgroundTransparency = options.headerTransparency ~= nil and options.headerTransparency or 1,
 		BorderSizePixel = 0,
 		Active = true,
 	}, self.Body)
 	local headerTitle = label(self.Header, options.title or "Backtrack UI", self.Theme, {
-		name = "Title",
-		position = UDim2.fromOffset(2, 4),
-		size = UDim2.new(1, -28, 0, 14),
-		textSize = 12,
-		color = self.Theme.accent,
+		name = options.titleObjectName or "Title",
+		position = options.titlePosition or UDim2.fromOffset(2, 4),
+		size = options.titleSize or UDim2.new(1, -28, 0, 14),
+		textSize = options.titleTextSize or 12,
+		color = options.titleColor or self.Theme.accent,
+		font = options.titleFont,
+		align = options.titleAlign,
 	})
+	self.TitleLabel = headerTitle
 	create("UIStroke", { LineJoinMode = Enum.LineJoinMode.Miter }, headerTitle)
 	self.CloseButton = create("TextButton", {
-		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -7, 0, 5),
-		Size = UDim2.fromOffset(0, 0),
+		Name = options.closeButtonName or "Close",
+		AnchorPoint = options.closeButtonAnchorPoint or Vector2.new(1, 0),
+		Position = options.closeButtonPosition or UDim2.new(1, -7, 0, 5),
+		Size = options.closeButtonSize or UDim2.fromOffset(0, 0),
 		AutomaticSize = Enum.AutomaticSize.XY,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
-		Font = Enum.Font.Legacy,
-		Text = "X",
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		TextColor3 = self.Theme.text,
+		Font = options.closeButtonFont or Enum.Font.Legacy,
+		Text = options.closeText or "X",
+		TextSize = options.closeButtonTextSize or 12,
+		TextXAlignment = options.closeButtonAlign or Enum.TextXAlignment.Right,
+		TextColor3 = options.closeButtonColor or self.Theme.text,
 		ZIndex = 100,
 	}, self.Outer)
 	create("UIStroke", {}, self.CloseButton)
@@ -479,8 +497,8 @@ function BacktrackUI.new(options)
 
 	self.PageOutline = create("Frame", {
 		Name = "SectionOutline",
-		Position = UDim2.fromOffset(0, 18),
-		Size = UDim2.new(1, 0, 1, -18),
+		Position = UDim2.fromOffset(options.pageOutlineX or 0, options.pageOutlineY or options.headerHeight or 18),
+		Size = UDim2.new(1, options.pageOutlineWidthOffset or 0, 1, options.pageOutlineHeightOffset or -(options.headerHeight or 18)),
 		BackgroundColor3 = self.Theme.inline,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -493,9 +511,11 @@ function BacktrackUI.new(options)
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 	}, self.PageOutline)
+	local tabBarHeight = options.tabBarHeight or (typeof(options.tabBarSize) == "UDim2" and options.tabBarSize.Y.Offset) or 22
 	self.TabBar = create("Frame", {
 		Name = "Tabs",
-		Size = UDim2.new(1, 0, 0, 22),
+		Position = options.tabBarPosition or UDim2.new(),
+		Size = options.tabBarSize or UDim2.new(1, 0, 0, tabBarHeight),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 	}, nil)
@@ -509,17 +529,24 @@ function BacktrackUI.new(options)
 	}, self.PageInline)
 	gradient(self.Pages, self.Theme.contrastTop, self.Theme.contrastBottom)
 	self.TabBar.Parent = self.Pages
-	create("UIListLayout", {
+	self.TabLayout = create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalFlex = Enum.UIFlexAlignment.Fill,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 2),
+		HorizontalFlex = options.tabBarFlex or Enum.UIFlexAlignment.Fill,
+		SortOrder = options.tabSortOrder or Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, options.tabSpacing or 2),
+	}, self.TabBar)
+	local tabBarPadding = options.tabBarPadding or {}
+	create("UIPadding", {
+		PaddingTop = UDim.new(0, tabBarPadding.top or 0),
+		PaddingBottom = UDim.new(0, tabBarPadding.bottom or 0),
+		PaddingLeft = UDim.new(0, tabBarPadding.left or 0),
+		PaddingRight = UDim.new(0, tabBarPadding.right or 0),
 	}, self.TabBar)
 
 	self.PageHost = create("Frame", {
 		Name = "SectionHolder",
-		Position = UDim2.new(0, -1, 0, 19),
-		Size = UDim2.new(1, 0, 1, -22),
+		Position = UDim2.new(0, options.pageHostX or -1, 0, options.pageHostY or tabBarHeight - 3),
+		Size = UDim2.new(1, options.pageHostWidthOffset or 0, 1, options.pageHostHeightOffset or -tabBarHeight),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -861,6 +888,21 @@ function BacktrackUI:SetVisible(visible)
 	self:_setVisible(visible)
 end
 
+function BacktrackUI:SetTitle(text)
+	self.TitleLabel.Text = tostring(text or "")
+	return self.TitleLabel.Text
+end
+
+function BacktrackUI:SetPosition(position)
+	self.Outer.Position = position
+	return position
+end
+
+function BacktrackUI:SetSize(size)
+	self.Outer.Size = size
+	return size
+end
+
 function BacktrackUI:Toggle()
 	local visible = not self._menuVisible
 	self:_setVisible(visible)
@@ -869,12 +911,32 @@ end
 
 function BacktrackUI:SelectTab(tabOrName)
 	for _, tab in ipairs(self._tabs) do
-		if tab == tabOrName or tab.Name == tabOrName then
+		if tab._visible and (tab == tabOrName or tab.Name == tabOrName) then
 			tab:SetActive(true)
 			return tab
 		end
 	end
 	return nil
+end
+
+function BacktrackUI:GetTabs()
+	local tabs = {}
+	for index, tab in ipairs(self._tabs) do tabs[index] = tab end
+	return tabs
+end
+
+function BacktrackUI:RemoveTab(tabOrName)
+	for _, tab in ipairs(self._tabs) do
+		if tab == tabOrName or tab.Button == tabOrName or tab.Name == tabOrName then
+			tab:Destroy()
+			return true
+		end
+	end
+	return false
+end
+
+function BacktrackUI:ClearTabs()
+	while #self._tabs > 0 do self._tabs[#self._tabs]:Destroy() end
 end
 
 function BacktrackUI:GetValues()
@@ -1765,36 +1827,56 @@ function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
 	self.Dock = nil
-	if options.luaModules == false then
-		if self._luaModuleManager then self._luaModuleManager:Destroy() end
-	else
-		local manager = self._luaModuleManager
-		if not manager or not manager.Panel or not manager.Panel.Gui or not manager.Panel.Gui.Parent then
-			self:CreateLuaModuleManager(type(options.luaModules) == "table" and options.luaModules or {})
-		end
-	end
-	local dock = { _window = self, _buttons = {}, _buttonConnections = {}, _buttonTooltipCloses = {} }
+	local dockTheme = mergeTheme(options.theme, self.Theme)
+	local buttonSize = options.buttonSize or 25
+	local buttonSizeUDim = typeof(buttonSize) == "UDim2" and buttonSize or UDim2.fromOffset(buttonSize, buttonSize)
+	local spacing = options.spacing or 5
+	local paddingX = options.paddingX or options.padding or 4
+	local paddingTop = options.paddingTop or 6
+	local paddingBottom = options.paddingBottom or 4
+	local dockHeight = options.height or 39
+	local dock = {
+		_window = self,
+		_items = {},
+		_buttons = {},
+		_buttonConnections = {},
+		_buttonTooltipCloses = {},
+		_dragConnections = {},
+		Theme = dockTheme,
+		Options = options,
+		ButtonSize = buttonSizeUDim,
+		Spacing = spacing,
+		PaddingX = paddingX,
+		PaddingTop = paddingTop,
+		PaddingBottom = paddingBottom,
+		Height = dockHeight,
+		AutoSize = options.size == nil,
+	}
+	dock.Items = dock._items
+	dock.Tabs = dock._items
 	local frame = create("Frame", {
-		Name = "BacktrackDock",
-		AnchorPoint = Vector2.new(0.5, 0),
+		Name = options.name or "BacktrackDock",
+		AnchorPoint = options.anchorPoint or Vector2.new(0.5, 0),
 		Position = options.position or UDim2.new(0.5, 0, 1, -120),
-		Size = options.size or UDim2.fromOffset(157, 39),
-		BackgroundColor3 = self.Theme.outline,
+		Size = options.size or UDim2.fromOffset(paddingX * 2, dockHeight),
+		BackgroundColor3 = options.backgroundColor or dockTheme.outline,
+		BackgroundTransparency = options.backgroundTransparency or 0,
 		BorderSizePixel = 0,
 		Active = true,
+		Visible = options.visible ~= false,
 		ZIndex = 10,
 	}, self:_getOverlayGui())
 	dock.Frame = frame
-	local glowImage = self.Images.glow4 or self.Images.glow
-	if glowImage then
+	local glowImage = options.glowImage or self.Images.glow4 or self.Images.glow
+	if glowImage and options.showGlow ~= false then
 		create("ImageLabel", {
 			Name = "DockGlow",
 			Position = UDim2.fromOffset(-20, -20),
 			Size = UDim2.new(1, 40, 1, 40),
 			BackgroundTransparency = 1,
 			Image = glowImage,
-			ImageColor3 = self.Theme.glow,
-			ImageTransparency = 0.8,
+			ImageColor3 = options.glowColor or dockTheme.glow,
+			ImageTransparency = options.glowTransparency or 0.8,
 			ScaleType = Enum.ScaleType.Slice,
 			SliceCenter = Rect.new(21, 21, 79, 79),
 			ZIndex = 9,
@@ -1803,22 +1885,24 @@ function BacktrackUI:CreateDock(options)
 	local inline = create("Frame", {
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = self.Theme.inline,
+		BackgroundColor3 = options.inlineColor or dockTheme.inline,
 		BorderSizePixel = 0,
 		ZIndex = 11,
 	}, frame)
+	dock.Inline = inline
 	local face = create("Frame", {
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -2),
-		BackgroundColor3 = self.Theme.contrastTop,
+		BackgroundColor3 = options.surfaceColor or dockTheme.contrastTop,
 		BorderSizePixel = 0,
 		ZIndex = 12,
 	}, inline)
-	gradient(face, self.Theme.contrastTop, self.Theme.contrastBottom)
-	create("Frame", {
+	dock.Surface = face
+	gradient(face, options.surfaceColor or dockTheme.contrastTop, options.surfaceBottomColor or dockTheme.contrastBottom)
+	dock.AccentCap = create("Frame", {
 		Name = "PinkCap",
-		Size = UDim2.new(1, 0, 0, 2),
-		BackgroundColor3 = self.Theme.accent,
+		Size = options.capSize or UDim2.new(1, 0, 0, 2),
+		BackgroundColor3 = options.accentColor or dockTheme.accent,
 		BorderSizePixel = 0,
 		ZIndex = 13,
 	}, face)
@@ -1829,156 +1913,455 @@ function BacktrackUI:CreateDock(options)
 		BackgroundTransparency = 1,
 		ZIndex = 14,
 	}, face)
-	create("UIListLayout", {
+	dock.Holder = holder
+	dock.Layout = create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 5),
+		SortOrder = options.sortOrder or Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, spacing),
 	}, holder)
 	create("UIPadding", {
-		PaddingTop = UDim.new(0, 6),
-		PaddingBottom = UDim.new(0, 4),
-		PaddingLeft = UDim.new(0, 4),
-		PaddingRight = UDim.new(0, 4),
+		PaddingTop = UDim.new(0, paddingTop),
+		PaddingBottom = UDim.new(0, paddingBottom),
+		PaddingLeft = UDim.new(0, paddingX),
+		PaddingRight = UDim.new(0, paddingX),
 	}, holder)
 	local dragStart, positionStart
-	connect(self, frame.InputBegan, function(input)
+	local function listenDock(signal, callback)
+		local connection = signal:Connect(callback)
+		table.insert(dock._dragConnections, connection)
+		return connection
+	end
+	listenDock(frame.InputBegan, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragStart, positionStart = input.Position, frame.Position
 		end
 	end)
-	connect(self, UserInputService.InputChanged, function(input)
+	listenDock(UserInputService.InputChanged, function(input)
 		if dragStart and positionStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
 			frame.Position = UDim2.new(positionStart.X.Scale, positionStart.X.Offset + delta.X, positionStart.Y.Scale, positionStart.Y.Offset + delta.Y)
 		end
 	end)
-	connect(self, UserInputService.InputEnded, function(input)
+	listenDock(UserInputService.InputEnded, function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
 	end)
-	function dock:AddButton(name, icon, callback, isOpen, stateSignals)
-		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
+	local function updateSize()
+		if not dock.AutoSize then return end
+		local count, width = 0, paddingX * 2
+		for _, tab in ipairs(dock._items) do
+			if not tab._destroyed and tab.Button.Visible then
+				count = count + 1
+				local size = tab.Button.Size
+				width = width + (size.X.Scale == 0 and size.X.Offset or buttonSizeUDim.X.Offset)
+			end
+		end
+		if count > 1 then width = width + (count - 1) * spacing end
+		frame.Size = UDim2.fromOffset(width, dock.Height)
+	end
+
+	local function copyOptions(source)
+		local result = {}
+		for key, value in pairs(source or {}) do result[key] = value end
+		return result
+	end
+
+	function dock:AddTab(name, icon, callback, itemOptions)
+		local config
+		if type(name) == "table" then
+			config = copyOptions(name)
+		else
+			config = copyOptions(itemOptions)
+			config.name = name
+			config.icon = icon
+			config.callback = callback
+		end
+		local itemName = tostring(config.name or ("Tab " .. tostring(#self._items + 1)))
+		local itemTheme = mergeTheme(config.theme, self.Theme)
+		local itemSize = config.size or buttonSizeUDim
 		local item = create("TextButton", {
-			Name = "DockButton",
-			Size = UDim2.fromOffset(25, 25),
-			BackgroundColor3 = self._window.Theme.inline,
-			BorderSizePixel = 0,
+			Name = config.objectName or "DockButton",
+			Size = itemSize,
+			BackgroundColor3 = config.backgroundColor or itemTheme.inline,
+			BorderSizePixel = config.borderSizePixel or 0,
 			Text = "",
-			AutoButtonColor = false,
-			ZIndex = 15,
+			AutoButtonColor = config.autoButtonColor == true,
+			Visible = config.visible ~= false,
+			ZIndex = config.zIndex or 15,
 		}, holder)
+		local itemZ = item.ZIndex
 		local outline = create("Frame", {
 			Name = "Outline",
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			BackgroundColor3 = self._window.Theme.outline,
+			Position = config.outlinePosition or UDim2.fromOffset(1, 1),
+			Size = config.outlineSize or UDim2.new(1, -2, 1, -2),
+			BackgroundColor3 = config.outlineColor or itemTheme.outline,
 			BorderSizePixel = 0,
-			ZIndex = 16,
+			ZIndex = itemZ + 1,
 		}, item)
 		local iconFace = create("Frame", {
 			Name = "Face",
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			BackgroundColor3 = self._window.Theme.contrastBottom,
+			Position = config.facePosition or UDim2.fromOffset(1, 1),
+			Size = config.faceSize or UDim2.new(1, -2, 1, -2),
+			BackgroundColor3 = config.surfaceColor or itemTheme.contrastBottom,
 			BorderSizePixel = 0,
-			ZIndex = 17,
+			ZIndex = itemZ + 2,
 		}, outline)
-		gradient(iconFace, self._window.Theme.contrastBottom, self._window.Theme.contrastTop)
-		item:SetAttribute("DockButtonName", tostring(name or ""))
-		local iconLabel
-		if image then
-			iconLabel = create("ImageLabel", {
-				Name = "Icon",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				Image = image,
-				ImageColor3 = self._window.Theme.inline,
-				ResampleMode = Enum.ResamplerMode.Pixelated,
-				ZIndex = 18,
-			}, iconFace)
-			create("UIPadding", {
-				PaddingTop = UDim.new(0, 3),
-				PaddingBottom = UDim.new(0, 3),
-				PaddingLeft = UDim.new(0, 3),
-				PaddingRight = UDim.new(0, 3),
-			}, iconFace)
-		elseif icon == "lua" then
-			iconLabel = create("TextLabel", {
-				Name = "Icon",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				Font = Enum.Font.Code,
-				Text = "</>",
-				TextSize = 10,
-				TextColor3 = self._window.Theme.inline,
-				ZIndex = 18,
-			}, iconFace)
-		end
-		local function refreshIcon()
-			local open = false
-			if type(isOpen) == "function" then
-				local ok, value = pcall(isOpen)
-				open = ok and value == true
+		gradient(iconFace, config.surfaceBottomColor or itemTheme.contrastBottom, config.surfaceTopColor or itemTheme.contrastTop)
+		local cap = create("Frame", {
+			Name = "AccentCap",
+			Size = config.capSize or UDim2.new(1, 0, 0, 2),
+			BackgroundColor3 = config.accentColor or itemTheme.accent,
+			BorderSizePixel = 0,
+			Visible = config.showCap == true,
+			ZIndex = itemZ + 3,
+		}, iconFace)
+		local handle = {
+			_dock = self,
+			_config = config,
+			Name = itemName,
+			Button = item,
+			Outline = outline,
+			IconFrame = iconFace,
+			Cap = cap,
+			Icon = nil,
+			_customSize = config.size ~= nil,
+			_visible = config.visible ~= false,
+			_order = config.order or (#self._items + 1),
+			_activeOverride = config.active,
+			_connections = {},
+			_destroyed = false,
+		}
+		item:SetAttribute("DockButtonName", itemName)
+		item.LayoutOrder = handle._order
+
+		local iconLabel, iconPadding
+		local function setIcon(nextIcon, iconText)
+			if iconLabel then iconLabel:Destroy(); iconLabel = nil end
+			if iconPadding then iconPadding:Destroy(); iconPadding = nil end
+			handle.Icon = nextIcon
+			local image = type(nextIcon) == "string" and (self._window.Images[nextIcon] or (nextIcon:match("^rbxassetid://") and nextIcon)) or nil
+			if image then
+				iconLabel = create("ImageLabel", {
+					Name = "Icon",
+					Size = UDim2.fromScale(1, 1),
+					BackgroundTransparency = 1,
+					Image = image,
+					ImageColor3 = itemTheme.inline,
+					ResampleMode = config.resampleMode or Enum.ResamplerMode.Pixelated,
+					ScaleType = config.scaleType or Enum.ScaleType.Fit,
+					ZIndex = itemZ + 3,
+				}, iconFace)
+				local inset = config.iconPadding or options.iconPadding or 3
+				iconPadding = create("UIPadding", {
+					PaddingTop = UDim.new(0, inset),
+					PaddingBottom = UDim.new(0, inset),
+					PaddingLeft = UDim.new(0, inset),
+					PaddingRight = UDim.new(0, inset),
+				}, iconFace)
+			elseif iconText or nextIcon == "lua" then
+				iconLabel = create("TextLabel", {
+					Name = "Icon",
+					Size = UDim2.fromScale(1, 1),
+					BackgroundTransparency = 1,
+					Font = config.iconFont or Enum.Font.Code,
+					Text = tostring(iconText or (nextIcon == "lua" and "</>" or nextIcon)),
+					TextSize = config.iconTextSize or 10,
+					TextColor3 = itemTheme.inline,
+					TextScaled = config.iconTextScaled == true,
+					ZIndex = itemZ + 3,
+				}, iconFace)
 			end
+			handle:Refresh()
+		end
+		local function updateTooltip(text)
+			if handle._closeTooltip then handle._closeTooltip(); handle._closeTooltip = nil end
+			if text ~= false and text ~= nil and text ~= "" then
+				handle._closeTooltip = self._window:AddTooltip(item, tostring(text))
+			end
+		end
+		function handle:Refresh()
+			local active = self._activeOverride
+			if type(active) == "function" then
+				local ok, value = pcall(active)
+				active = ok and value == true
+			elseif active == nil then
+				if type(self._config.isOpen) == "function" then
+					local ok, value = pcall(self._config.isOpen)
+					active = ok and value == true
+				else
+					active = self._config.active == true
+				end
+			end
+			local activeColor = self._config.activeColor or itemTheme.accent
+			local inactiveColor = self._config.inactiveColor or itemTheme.inline
+			local color = active and activeColor or inactiveColor
 			if iconLabel then
-				local color = open and self._window.Theme.accent or self._window.Theme.inline
 				if iconLabel:IsA("ImageLabel") then iconLabel.ImageColor3 = color
 				else iconLabel.TextColor3 = color end
 			end
+			if self._config.buttonColor then item.BackgroundColor3 = self._config.buttonColor end
+			if self._config.surfaceColor then iconFace.BackgroundColor3 = self._config.surfaceColor end
+			if self._config.accentColor then cap.BackgroundColor3 = self._config.accentColor end
 		end
-		refreshIcon()
-		for _, signal in ipairs(stateSignals or {}) do
-			local ok, connection = pcall(function() return signal:Connect(refreshIcon) end)
-			if ok and connection then table.insert(self._buttonConnections, connection) end
+		function handle:SetActive(active)
+			self._activeOverride = active
+			self:Refresh()
+			return active
 		end
-		table.insert(self._buttonTooltipCloses, self._window:AddTooltip(item, tostring(name or "")))
-		item.LayoutOrder = #self._buttons + 1
-		item.Activated:Connect(function()
-			if callback then
-				invoke(callback)
-			else
-				self._window.Gui.Enabled = true
-				self._window.Outer.Visible = true
+		function handle:SetVisible(visible)
+			self._visible = visible ~= false
+			item.Visible = self._visible
+			updateSize()
+		end
+		function handle:SetName(nextName)
+			self.Name = tostring(nextName or "")
+			item:SetAttribute("DockButtonName", self.Name)
+			local tooltip = self._config.tooltip
+			if tooltip == nil then tooltip = self.Name end
+			updateTooltip(tooltip)
+		end
+		function handle:SetIcon(nextIcon, nextIconText)
+			self._config.icon = nextIcon
+			self._config.iconText = nextIconText
+			setIcon(nextIcon, nextIconText)
+		end
+		function handle:SetOrder(order)
+			self._order = order
+			item.LayoutOrder = order
+		end
+		function handle:SetSize(size)
+			self._customSize = true
+			item.Size = size
+			updateSize()
+		end
+		function handle:SetTooltip(text)
+			self._config.tooltip = text
+			updateTooltip(text)
+		end
+		function handle:SetStyle(style)
+			for key, value in pairs(style or {}) do self._config[key] = value end
+			local config = self._config
+			if config.buttonColor or config.backgroundColor then item.BackgroundColor3 = config.buttonColor or config.backgroundColor end
+			if config.outlineColor then outline.BackgroundColor3 = config.outlineColor end
+			if config.surfaceColor then iconFace.BackgroundColor3 = config.surfaceColor end
+			if config.surfaceColor or config.surfaceBottomColor or config.surfaceTopColor then
+				local surfaceGradient = iconFace:FindFirstChildOfClass("UIGradient")
+				if surfaceGradient then
+					surfaceGradient.Color = ColorSequence.new(config.surfaceBottomColor or itemTheme.contrastBottom,
+						config.surfaceTopColor or config.surfaceColor or itemTheme.contrastTop)
+				end
 			end
-			refreshIcon()
-		end)
-		table.insert(self._buttons, item)
-		if not options.size then
-			local count = #self._buttons
-			frame.Size = UDim2.fromOffset(math.max(157, 8 + count * 25 + math.max(0, count - 1) * 5), 39)
+			if config.accentColor then cap.BackgroundColor3 = config.accentColor end
+			if config.capSize then cap.Size = config.capSize end
+			if config.showCap ~= nil then cap.Visible = config.showCap end
+			if config.size then self:SetSize(config.size) end
+			if config.zIndex then item.ZIndex = config.zIndex end
+			if config.autoButtonColor ~= nil then item.AutoButtonColor = config.autoButtonColor end
+			if config.icon ~= nil or config.image ~= nil or config.iconText ~= nil then
+				setIcon(config.icon or config.image, config.iconText)
+			else
+				self:Refresh()
+			end
 		end
-		return item
+		function handle:Destroy()
+			if self._destroyed then return end
+			self._destroyed = true
+			for _, connection in ipairs(self._connections) do connection:Disconnect() end
+			table.clear(self._connections)
+			if self._closeTooltip then self._closeTooltip(); self._closeTooltip = nil end
+			if item.Parent then item:Destroy() end
+			for index, candidate in ipairs(self._dock._items) do
+				if candidate == self then table.remove(self._dock._items, index) break end
+			end
+			for index, candidate in ipairs(self._dock._buttons) do
+				if candidate == item then table.remove(self._dock._buttons, index) break end
+			end
+			updateSize()
+		end
+
+		setIcon(config.icon or config.image, config.iconText)
+		local tooltip = config.tooltip
+		if tooltip == nil then tooltip = itemName end
+		updateTooltip(tooltip)
+		for _, signal in ipairs(config.stateSignals or {}) do
+			local ok, connection = pcall(function() return signal:Connect(function() handle:Refresh() end) end)
+			if ok and connection then table.insert(handle._connections, connection) end
+		end
+		item.Activated:Connect(function()
+			if type(config.callback) == "function" then invoke(config.callback, self._window, handle) end
+			handle:Refresh()
+		end)
+		table.insert(self._items, handle)
+		table.insert(self._buttons, item)
+		handle:Refresh()
+		updateSize()
+		return handle
+	end
+	function dock:AddButton(name, icon, callback, isOpen, stateSignals, itemOptions)
+		if type(name) == "table" then return self:AddTab(name).Button end
+		if type(isOpen) == "table" and stateSignals == nil and itemOptions == nil then
+			itemOptions = isOpen
+			isOpen = itemOptions.isOpen
+			stateSignals = itemOptions.stateSignals
+		end
+		local config = copyOptions(itemOptions)
+		config.name, config.icon, config.callback = name, icon, callback
+		if isOpen ~= nil then config.isOpen = isOpen end
+		if stateSignals ~= nil then config.stateSignals = stateSignals end
+		return self:AddTab(config).Button
+	end
+	function dock:AddWindow(name, target, icon, itemOptions)
+		local config
+		if type(name) == "table" then
+			config = copyOptions(name)
+			target = config.target or config.window
+		else
+			config = copyOptions(itemOptions)
+			config.name = name
+			config.icon = icon
+		end
+		if target == nil or target == self._window then
+			config.callback = function()
+				local window = self._window
+				local opening = not (window.Gui.Enabled and window.Outer.Visible)
+				window.Gui.Enabled = opening
+				if opening then
+					window.Outer.Visible = true
+					window._nextDisplayOrder = window._nextDisplayOrder + 1
+					window.Gui.DisplayOrder = window._nextDisplayOrder
+				end
+				window:_syncCursor()
+			end
+			config.isOpen = function()
+				local window = self._window
+				return window.Gui.Enabled and window.Outer.Visible
+			end
+			config.stateSignals = {
+				self._window.Gui:GetPropertyChangedSignal("Enabled"),
+				self._window.Outer:GetPropertyChangedSignal("Visible"),
+			}
+			config.icon = config.icon or "main"
+			config.name = config.name or "Main"
+		else
+			local targetPanel = target
+			config.callback = function()
+				if type(targetPanel.Toggle) == "function" then
+					targetPanel:Toggle()
+				elseif targetPanel.Gui then
+					targetPanel.Gui.Enabled = not targetPanel.Gui.Enabled
+				end
+			end
+			config.isOpen = function() return targetPanel.Gui and targetPanel.Gui.Enabled == true end
+			config.stateSignals = targetPanel.Gui and { targetPanel.Gui:GetPropertyChangedSignal("Enabled") } or {}
+			config.icon = config.icon or targetPanel.Image
+			config.name = config.name or targetPanel.Name or "Window"
+		end
+		return self:AddTab(config)
+	end
+	function dock:AddPanel(panel, itemOptions)
+		assert(type(panel) == "table", "dock:AddPanel expects a panel returned by CreatePanel")
+		itemOptions = copyOptions(itemOptions)
+		itemOptions.name = itemOptions.name or (panel and panel.Name)
+		itemOptions.icon = itemOptions.icon or (panel and panel.Image)
+		return self:AddWindow(itemOptions.name, panel, itemOptions.icon, itemOptions)
+	end
+	dock.AddDockTab = dock.AddTab
+	dock.AddDockButton = dock.AddButton
+	dock.add_tab = dock.AddTab
+	dock.add_button = dock.AddButton
+	dock.add_window = dock.AddWindow
+	dock.add_panel = dock.AddPanel
+	function dock:RemoveTab(reference)
+		for _, item in ipairs(self._items) do
+			if item == reference or item.Button == reference or item.Name == reference then
+				item:Destroy()
+				return true
+			end
+		end
+		return false
+	end
+	dock.RemoveButton = dock.RemoveTab
+	function dock:Clear()
+		while #self._items > 0 do self._items[1]:Destroy() end
 	end
 	function dock:Refresh()
-		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
-		table.clear(self._buttonConnections)
-		for _, closeTooltip in ipairs(self._buttonTooltipCloses) do closeTooltip() end
-		table.clear(self._buttonTooltipCloses)
-		for _, item in ipairs(self._buttons) do
-			item:Destroy()
+		for _, item in ipairs(self._items) do item:Refresh() end
+		updateSize()
+	end
+	function dock:SetSpacing(value)
+		spacing = math.max(0, tonumber(value) or spacing)
+		dock.Spacing = spacing
+		dock.Options.spacing = spacing
+		for _, child in ipairs(holder:GetChildren()) do
+			if child:IsA("UIListLayout") then child.Padding = UDim.new(0, spacing) break end
 		end
-		table.clear(self._buttons)
-		self:AddButton("Main", options.icon or "main", function()
-			local mainGui = self._window.Gui
-			mainGui.Enabled = not mainGui.Enabled
-			if mainGui.Enabled then
-				self._window.Outer.Visible = true
-				self._window._nextDisplayOrder = self._window._nextDisplayOrder + 1
-				mainGui.DisplayOrder = self._window._nextDisplayOrder
+		updateSize()
+	end
+	function dock:SetButtonSize(value)
+		buttonSizeUDim = typeof(value) == "UDim2" and value or UDim2.fromOffset(value, value)
+		dock.ButtonSize = buttonSizeUDim
+		dock.Options.buttonSize = value
+		for _, tab in ipairs(self._items) do
+			if not tab._customSize then tab.Button.Size = buttonSizeUDim end
+		end
+		updateSize()
+	end
+	function dock:SetPosition(position)
+		frame.Position = position
+		dock.Options.position = position
+	end
+	function dock:SetSize(size)
+		dock.AutoSize = false
+		frame.Size = size
+		dock.Options.size = size
+	end
+	function dock:FitContent()
+		dock.AutoSize = true
+		dock.Options.size = nil
+		updateSize()
+	end
+	function dock:SetStyle(style)
+		for key, value in pairs(style or {}) do self.Options[key] = value end
+		local config = self.Options
+		if config.name then frame.Name = config.name end
+		if config.position then frame.Position = config.position end
+		if config.anchorPoint then frame.AnchorPoint = config.anchorPoint end
+		if config.backgroundColor then frame.BackgroundColor3 = config.backgroundColor end
+		if config.backgroundTransparency ~= nil then frame.BackgroundTransparency = config.backgroundTransparency end
+		if config.inlineColor then inline.BackgroundColor3 = config.inlineColor end
+		if config.surfaceColor then face.BackgroundColor3 = config.surfaceColor end
+		if config.surfaceColor or config.surfaceBottomColor then
+			local surfaceGradient = face:FindFirstChildOfClass("UIGradient")
+			if surfaceGradient then
+				surfaceGradient.Color = ColorSequence.new(config.surfaceColor or dockTheme.contrastTop,
+					config.surfaceBottomColor or dockTheme.contrastBottom)
 			end
-		end,
-			function() return self._window.Gui.Enabled and self._window.Outer.Visible end,
-			{ self._window.Gui:GetPropertyChangedSignal("Enabled"), self._window.Outer:GetPropertyChangedSignal("Visible") })
-		for _, panel in ipairs(self._window._panels) do
-			self:AddButton(panel.Name, panel.Image, function() panel:Toggle() end,
-				function() return panel.Gui.Enabled end,
-				{ panel.Gui:GetPropertyChangedSignal("Enabled") })
 		end
+		if config.accentColor then dock.AccentCap.BackgroundColor3 = config.accentColor end
+		if config.capSize then dock.AccentCap.Size = config.capSize end
+		local glow = frame:FindFirstChild("DockGlow")
+		if glow and config.showGlow ~= nil then glow.Visible = config.showGlow end
+		if glow and config.glowColor then glow.ImageColor3 = config.glowColor end
+		if glow and config.glowTransparency then glow.ImageTransparency = config.glowTransparency end
+		if config.buttonSize then self:SetButtonSize(config.buttonSize) end
+		if config.spacing then self:SetSpacing(config.spacing) end
+		if config.visible ~= nil then self:SetVisible(config.visible) end
+		if config.size then self:SetSize(config.size) end
 	end
 	function dock:SetVisible(visible)
 		frame.Visible = visible ~= false
+		self.Options.visible = frame.Visible
 		self._window:_syncCursor()
 	end
+	function dock:Toggle()
+		self:SetVisible(not frame.Visible)
+		return frame.Visible
+	end
 	function dock:Destroy()
+		if self._destroyed then return end
+		self._destroyed = true
+		self:Clear()
+		for _, connection in ipairs(self._dragConnections) do connection:Disconnect() end
+		table.clear(self._dragConnections)
 		for _, connection in ipairs(self._buttonConnections) do connection:Disconnect() end
 		table.clear(self._buttonConnections)
 		for _, closeTooltip in ipairs(self._buttonTooltipCloses) do closeTooltip() end
@@ -1987,7 +2370,6 @@ function BacktrackUI:CreateDock(options)
 		if self._window.Dock == self then self._window.Dock = nil end
 		self._window:_syncCursor()
 	end
-	dock:Refresh()
 	self.Dock = dock
 	self:_syncCursor()
 	return dock
@@ -2024,26 +2406,38 @@ local Section = {}
 Section.__index = Section
 
 function BacktrackUI:AddTab(name, iconText)
+	local tabOptions
 	if type(name) == "table" then
-		iconText = name.icon or name.image or iconText
-		name = name.name or name.title
+		tabOptions = name
+	else
+		tabOptions = { name = name, iconText = iconText }
 	end
 	local index = #self._tabs + 1
-	local tab = setmetatable({ _window = self, Name = name or ("Tab " .. index), _iconText = iconText, _columns = {}, _sectionCount = 0 }, Tab)
+	local tab = setmetatable({
+		_window = self,
+		Name = tabOptions.name or tabOptions.title or ("Tab " .. index),
+		Options = tabOptions,
+		Icon = tabOptions.icon or tabOptions.image,
+		_visible = tabOptions.visible ~= false,
+		_columns = {},
+		_sectionCount = 0,
+	}, Tab)
 	tab.Button = create("TextButton", {
-		Name = "TabButton",
-		AutoButtonColor = false,
-		Size = UDim2.new(0, 0, 1, -2),
-		BackgroundColor3 = self.Theme.outline,
+		Name = tabOptions.objectName or "TabButton",
+		AutoButtonColor = tabOptions.autoButtonColor == true,
+		Size = tabOptions.size or UDim2.new(0, tabOptions.width or 0, 1, -2),
+		BackgroundColor3 = tabOptions.buttonColor or self.Theme.outline,
 		BorderSizePixel = 0,
 		Text = "",
+		Visible = tab._visible,
+		LayoutOrder = tabOptions.order or index,
 		ZIndex = 5,
 	}, self.TabBar)
 	tab.Inline = create("Frame", {
 		Name = "Inline",
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, 0),
-		BackgroundColor3 = self.Theme.inline,
+		BackgroundColor3 = tabOptions.inlineColor or self.Theme.inline,
 		BorderSizePixel = 0,
 		ZIndex = 5,
 	}, tab.Button)
@@ -2051,20 +2445,23 @@ function BacktrackUI:AddTab(name, iconText)
 		Name = "Face",
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 1, -1),
-		BackgroundColor3 = self.Theme.contrastTop,
+		BackgroundColor3 = tabOptions.surfaceColor or self.Theme.contrastTop,
 		BorderSizePixel = 0,
 		ZIndex = 5,
 	}, tab.Inline)
-	tab.FaceGradient = gradient(tab.Face, self.Theme.contrastTop, self.Theme.contrastBottom)
-	tab.Label = label(tab.Face, tab.Name, self.Theme, {
+	tab.FaceGradient = gradient(tab.Face, tabOptions.surfaceColor or self.Theme.contrastTop, tabOptions.surfaceBottomColor or self.Theme.contrastBottom)
+	tab.Label = label(tab.Face, tabOptions.text or tab.Name, self.Theme, {
 		name = "TabLabel",
-		textSize = 12,
-		align = Enum.TextXAlignment.Center,
-		color = self.Theme.text,
+		position = tabOptions.labelPosition or UDim2.new(),
+		size = tabOptions.labelSize or UDim2.new(1, 0, 1, 0),
+		textSize = tabOptions.textSize or 12,
+		align = tabOptions.textAlign or Enum.TextXAlignment.Center,
+		color = tabOptions.textColor or self.Theme.text,
+		font = tabOptions.font,
 		zIndex = 6,
 	})
 	tab.Page = create("Frame", {
-		Name = "Page_" .. tostring(index),
+		Name = tabOptions.pageName or "Page_" .. tostring(index),
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -2084,9 +2481,162 @@ function BacktrackUI:AddTab(name, iconText)
 		PaddingLeft = UDim.new(0, 4),
 		PaddingRight = UDim.new(0, 4),
 	}, tab.Page)
+	local function setTabIcon(icon, text)
+		if tab.IconLabel then tab.IconLabel:Destroy(); tab.IconLabel = nil end
+		tab.Icon = icon
+		tabOptions.icon = icon
+		tabOptions.iconText = text
+		local image = type(icon) == "string" and (self.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
+		if image then
+			tab.IconLabel = create("ImageLabel", {
+				Name = "TabIcon",
+				Position = tabOptions.iconPosition or UDim2.fromOffset(5, 3),
+				Size = tabOptions.iconSizeUDim2 or UDim2.fromOffset(tabOptions.iconSize or 14, tabOptions.iconSize or 14),
+				BackgroundTransparency = 1,
+				Image = image,
+				ImageColor3 = tabOptions.iconColor or self.Theme.text,
+				ResampleMode = tabOptions.resampleMode or Enum.ResamplerMode.Pixelated,
+				ZIndex = 6,
+			}, tab.Face)
+		elseif text then
+			tab.IconLabel = label(tab.Face, text, self.Theme, {
+				name = "TabIcon",
+				position = tabOptions.iconPosition or UDim2.fromOffset(4, 0),
+				size = tabOptions.iconSizeUDim2 or UDim2.fromOffset(tabOptions.iconWidth or 18, tabOptions.iconHeight or 20),
+				font = tabOptions.iconFont or Enum.Font.Code,
+				textSize = tabOptions.iconTextSize or 11,
+				align = Enum.TextXAlignment.Center,
+				color = tabOptions.iconColor or self.Theme.text,
+				zIndex = 6,
+			})
+		end
+		if tab.IconLabel then
+			tab.Label.Position = tabOptions.labelPosition or UDim2.fromOffset(tabOptions.labelOffset or 22, 0)
+			tab.Label.Size = tabOptions.labelSize or UDim2.new(1, -(tabOptions.labelOffset or 22), 1, 0)
+			tab.Label.TextXAlignment = tabOptions.textAlign or Enum.TextXAlignment.Left
+		end
+		tab.Label.Visible = tabOptions.showName ~= false
+		if not tab.IconLabel then
+			tab.Label.Position = tabOptions.labelPosition or UDim2.new()
+			tab.Label.Size = tabOptions.labelSize or UDim2.new(1, 0, 1, 0)
+			tab.Label.TextXAlignment = tabOptions.textAlign or Enum.TextXAlignment.Center
+		end
+	end
+	function tab:_updateStyle(selected)
+		local inactiveText = self.Options.textColor or self._window.Theme.text
+		local activeText = self.Options.activeColor or self._window.Theme.accent
+		local inactiveIcon = self.Options.iconColor or inactiveText
+		local activeIcon = self.Options.activeIconColor or activeText
+		self.Label.TextColor3 = selected and activeText or inactiveText
+		if self.IconLabel then
+			if self.IconLabel:IsA("ImageLabel") then
+				self.IconLabel.ImageColor3 = selected and activeIcon or inactiveIcon
+			else
+				self.IconLabel.TextColor3 = selected and activeIcon or inactiveIcon
+			end
+		end
+		self.Face.Size = selected and (self.Options.activeFaceSize or UDim2.new(1, -2, 1, 0)) or (self.Options.inactiveFaceSize or UDim2.new(1, -2, 1, -1))
+		self.FaceGradient.Rotation = selected and (self.Options.activeGradientRotation or -90) or (self.Options.inactiveGradientRotation or 90)
+		self.Face.BackgroundColor3 = selected and (self.Options.activeSurfaceColor or self.Options.surfaceColor or self._window.Theme.contrastTop)
+			or (self.Options.surfaceColor or self._window.Theme.contrastTop)
+	end
+	function tab:SetName(nextName)
+		self.Name = tostring(nextName or "")
+		if self.Options.text == nil then self.Label.Text = self.Name end
+		return self.Name
+	end
+	function tab:SetText(nextText)
+		self.Options.text = tostring(nextText or "")
+		self.Label.Text = self.Options.text
+		return self.Options.text
+	end
+	function tab:SetIcon(icon, text)
+		setTabIcon(icon, text)
+		if self._updateStyle then self:_updateStyle(self._window.ActiveTab == self) end
+	end
+	function tab:SetCallback(callback)
+		self.Options.callback = callback
+	end
+	function tab:SetStyle(style)
+		for key, value in pairs(style or {}) do self.Options[key] = value end
+		local config = self.Options
+		if config.buttonColor then self.Button.BackgroundColor3 = config.buttonColor end
+		if config.inlineColor then self.Inline.BackgroundColor3 = config.inlineColor end
+		if config.surfaceColor then self.Face.BackgroundColor3 = config.surfaceColor end
+		if config.surfaceColor or config.surfaceBottomColor then
+			self.FaceGradient.Color = ColorSequence.new(config.surfaceColor or self._window.Theme.contrastTop,
+				config.surfaceBottomColor or self._window.Theme.contrastBottom)
+		end
+		if config.textSize then self.Label.TextSize = config.textSize end
+		if config.font then self.Label.Font = config.font end
+		if config.textAlign then self.Label.TextXAlignment = config.textAlign end
+		if config.text ~= nil then self.Label.Text = tostring(config.text) end
+		if config.size then self.Button.Size = config.size
+		elseif config.width then self.Button.Size = UDim2.new(0, config.width, 1, -2) end
+		if config.order then self.Button.LayoutOrder = config.order end
+		if config.showName ~= nil then self.Label.Visible = config.showName end
+		if config.visible ~= nil then self:SetVisible(config.visible) end
+		if config.iconColor and self.IconLabel then
+			if self.IconLabel:IsA("ImageLabel") then self.IconLabel.ImageColor3 = config.iconColor
+			else self.IconLabel.TextColor3 = config.iconColor end
+		end
+		if config.iconSize or config.iconSizeUDim2 or config.iconWidth or config.iconHeight or config.iconPosition
+			or config.iconFont or config.iconTextSize or config.iconText ~= nil then
+			setTabIcon(self.Icon, config.iconText)
+		end
+		self:_updateStyle(self._window.ActiveTab == self)
+	end
+	function tab:SetVisible(visible)
+		self._visible = visible ~= false
+		self.Button.Visible = self._visible
+		if not self._visible then
+			self.Page.Visible = false
+			self:_updateStyle(false)
+			if self._window.ActiveTab == self then
+				self._window.ActiveTab = nil
+				for _, candidate in ipairs(self._window._tabs) do
+					if candidate ~= self and candidate._visible then candidate:SetActive(true); break end
+				end
+			end
+		elseif not self._window.ActiveTab then
+			self:SetActive(true)
+		end
+	end
+	function tab:SetOrder(order)
+		self.Options.order = order
+		self.Button.LayoutOrder = order
+	end
+	function tab:SetTooltip(text)
+		if self._closeTooltip then self._closeTooltip(); self._closeTooltip = nil end
+		if text ~= nil and text ~= false and text ~= "" then
+			self._closeTooltip = self._window:AddTooltip(self.Button, tostring(text))
+		end
+	end
+	function tab:Destroy()
+		local wasActive = self._window.ActiveTab == self
+		if self._closeTooltip then self._closeTooltip(); self._closeTooltip = nil end
+		for index, candidate in ipairs(self._window._tabs) do
+			if candidate == self then table.remove(self._window._tabs, index) break end
+		end
+		if self.Button.Parent then self.Button:Destroy() end
+		if self.Page.Parent then self.Page:Destroy() end
+		if wasActive then self._window.ActiveTab = nil end
+		for index, candidate in ipairs(self._window._tabs) do
+			candidate.Button.LayoutOrder = candidate.Options.order or index
+		end
+		if wasActive then
+			for _, candidate in ipairs(self._window._tabs) do
+				if candidate._visible then candidate:SetActive(true); break end
+			end
+		end
+	end
+	setTabIcon(tab.Icon, tabOptions.iconText)
+	if tabOptions.tooltip ~= nil then tab:SetTooltip(tabOptions.tooltip) end
 	tab.Button.Activated:Connect(function() tab:SetActive(true) end)
 	table.insert(self._tabs, tab)
-	if index == 1 then tab:SetActive(true) end
+	if tab._visible and (tabOptions.active == true or (tabOptions.active ~= false and not self.ActiveTab)) then
+		tab:SetActive(true)
+	end
 	return tab
 end
 
@@ -2133,16 +2683,19 @@ end
 function Tab:SetActive(active)
 	if active == false then
 		self.Page.Visible = false
+		if self._window.ActiveTab == self then self._window.ActiveTab = nil end
+		if self._updateStyle then self:_updateStyle(false) end
 		return
 	end
+	if not self._visible then return end
+	local changed = self._window.ActiveTab ~= self
 	for _, tab in ipairs(self._window._tabs) do
-		tab.Page.Visible = tab == self
 		local selected = tab == self
-		tab.Label.TextColor3 = selected and self._window.Theme.accent or self._window.Theme.text
-		tab.Face.Size = selected and UDim2.new(1, -2, 1, 0) or UDim2.new(1, -2, 1, -1)
-		tab.FaceGradient.Rotation = selected and -90 or 90
+		tab.Page.Visible = selected and tab._visible
+		tab:_updateStyle(selected)
 	end
 	self._window.ActiveTab = self
+	if changed then invoke(self.Options.callback, self, self._window) end
 end
 
 local function createSectionContent(window, section, scrollParent, scrollPosition, scrollSize, bottomPadding)
@@ -2808,29 +3361,31 @@ end
 
 function Section:Button(options)
 	options = options or {}
-	local name = options.text or options.name or "Button"
+	local name = tostring(options.text or options.name or "Button")
+	local callback = options.callback
+	local style = {}
+	for key, value in pairs(options.style or {}) do style[key] = value end
+	for key, value in pairs(options) do
+		if style[key] == nil then style[key] = value end
+	end
 	local row, click
 	local holder = self._buttonHolder
 	if holder and holder.Parent == self.Content then
 		row = holder
-		click = sourceActionButton(holder, name, self._window.Theme, {
-			position = UDim2.fromOffset(0, 2),
-			size = UDim2.new(1, -27, 0, 18),
-			textSize = options.textSize or 12,
-			textColor = options.textColor,
-		})
+		style.position = style.position or UDim2.fromOffset(0, 2)
+		style.size = style.size or UDim2.new(1, -27, 0, 18)
+		style.textSize = style.textSize or 12
+		click = sourceActionButton(holder, name, self._window.Theme, style)
 	else
 		local text
 		row, text = self:_row(options.name or name, options.height or 28, true)
-		click = sourceActionButton(row, name, self._window.Theme, {
-			position = UDim2.fromOffset(2, 2),
-			size = UDim2.new(1, -4, 1, -4),
-			textSize = options.textSize or 12,
-			textColor = options.textColor,
-		})
+		style.position = style.position or UDim2.fromOffset(2, 2)
+		style.size = style.size or UDim2.new(1, -4, 1, -4)
+		style.textSize = style.textSize or 12
+		click = sourceActionButton(row, name, self._window.Theme, style)
 		text.Visible = false
 	end
-	local control = { _section = self, _row = row, Name = name, Flag = options.flag }
+	local control = { _section = self, _row = row, Name = name, Flag = options.flag, _buttonHolder = holder }
 	control.Button = click
 	local title = click:FindFirstChild("Title", true)
 	local confirmUntil = 0
@@ -2867,10 +3422,85 @@ function Section:Button(options)
 		end
 		confirmToken = confirmToken + 1
 		restoreTitle()
-		invoke(options.callback)
+		invoke(callback, control, self)
 	end
 	click.Activated:Connect(control.Activate)
-	if options.tooltip then self._window:AddTooltip(row, options.tooltip) end
+	local tooltipText = options.tooltip
+	local closeTooltip
+	local function setTooltip(text)
+		if closeTooltip then closeTooltip(); closeTooltip = nil end
+		tooltipText = text
+		if text and text ~= "" then closeTooltip = self._window:AddTooltip(holder and click or row, tostring(text)) end
+	end
+	function control:SetText(text)
+		name = tostring(text or "")
+		self.Name = name
+		restoreTitle()
+		return name
+	end
+	function control:SetCallback(nextCallback)
+		callback = nextCallback
+	end
+	function control:SetVisible(visible)
+		if self._buttonHolder then click.Visible = visible ~= false
+		else row.Visible = visible ~= false end
+	end
+	function control:SetTooltip(text)
+		setTooltip(text)
+	end
+	function control:SetStyle(nextStyle)
+		nextStyle = nextStyle or {}
+		for key, value in pairs(nextStyle) do style[key] = value end
+		local inline = click:FindFirstChild("Inline")
+		local accent = inline and inline:FindFirstChild("Accent")
+		local face = accent and accent:FindFirstChild("Face")
+		local hoverFill = accent and accent:FindFirstChild("HoverFill")
+		if style.buttonColor or style.backgroundColor then click.BackgroundColor3 = style.buttonColor or style.backgroundColor end
+		if style.inlineColor and inline then inline.BackgroundColor3 = style.inlineColor end
+		if style.accentColor and accent then accent.BackgroundColor3 = style.accentColor end
+		if style.accentPosition and accent then accent.Position = style.accentPosition end
+		if style.accentSize and accent then accent.Size = style.accentSize end
+		if style.surfaceColor and face then face.BackgroundColor3 = style.surfaceColor end
+		if style.hoverColor and hoverFill then hoverFill.BackgroundColor3 = style.hoverColor end
+		if style.textColor then title.TextColor3 = style.textColor end
+		if style.textSize then title.TextSize = style.textSize end
+		if style.fontFace then title.FontFace = style.fontFace elseif style.font then title.Font = style.font end
+		if style.position then click.Position = style.position end
+		if style.size then click.Size = style.size end
+		if style.zIndex then click.ZIndex = style.zIndex end
+		if style.autoButtonColor ~= nil then click.AutoButtonColor = style.autoButtonColor end
+		if style.textStrokeColor then title.TextStrokeColor3 = style.textStrokeColor end
+		if style.textStrokeTransparency then title.TextStrokeTransparency = style.textStrokeTransparency end
+		if style.textTransparency then title.TextTransparency = style.textTransparency end
+		if style.align then title.TextXAlignment = style.align end
+		if style.labelPosition then title.Position = style.labelPosition end
+		if style.labelSize then title.Size = style.labelSize end
+		if style.inlinePosition and inline then inline.Position = style.inlinePosition end
+		if style.inlineSize and inline then inline.Size = style.inlineSize end
+		if style.surfacePosition and face then face.Position = style.surfacePosition end
+		if style.surfaceSize and face then face.Size = style.surfaceSize end
+		if style.accentTopColor or style.accentBottomColor then
+			local accentGradient = accent and accent:FindFirstChildOfClass("UIGradient")
+			if accentGradient then
+				accentGradient.Color = ColorSequence.new(style.accentTopColor or Color3.fromRGB(255, 255, 255), style.accentBottomColor or Color3.fromRGB(167, 167, 167))
+			end
+		end
+		if style.surfaceColor or style.surfaceBottomColor then
+			local surfaceGradient = face and face:FindFirstChildOfClass("UIGradient")
+			if surfaceGradient then
+				surfaceGradient.Color = ColorSequence.new(style.surfaceColor or self._section._window.Theme.contrastTop, style.surfaceBottomColor or self._section._window.Theme.contrastBottom)
+			end
+		end
+		if style.height and not self._buttonHolder then
+			row.Size = UDim2.new(row.Size.X.Scale, row.Size.X.Offset, 0, style.height)
+		end
+	end
+	function control:Destroy()
+		if closeTooltip then closeTooltip(); closeTooltip = nil end
+		if self._buttonHolder and click.Parent then click:Destroy()
+		elseif row.Parent then row:Destroy() end
+	end
+	if tooltipText then setTooltip(tooltipText) end
 	return control
 end
 
@@ -3593,8 +4223,19 @@ BacktrackUI.unload = BacktrackUI.Destroy
 BacktrackUI.set_theme = BacktrackUI.SetTheme
 BacktrackUI.create_dock = BacktrackUI.CreateDock
 BacktrackUI.create_keybind_list = BacktrackUI.CreateKeybindList
+BacktrackUI.add_tab = BacktrackUI.AddTab
+BacktrackUI.get_tabs = BacktrackUI.GetTabs
+BacktrackUI.remove_tab = BacktrackUI.RemoveTab
+BacktrackUI.clear_tabs = BacktrackUI.ClearTabs
+BacktrackUI.set_title = BacktrackUI.SetTitle
+BacktrackUI.set_position = BacktrackUI.SetPosition
+BacktrackUI.set_size = BacktrackUI.SetSize
 Tab.column = Tab.AddColumn
 Tab.section = Tab.AddSection
+Tab.set_active = Tab.SetActive
+Tab.set_visible = Tab.SetVisible
+Tab.set_style = Tab.SetStyle
+Tab.set_callback = Tab.SetCallback
 Column.section = Column.AddSection
 Column.column = Column.Column
 Column.multi_section = Column.MultiSection
@@ -3605,6 +4246,8 @@ Section.slider = Section.Slider
 Section.dropdown = Section.Dropdown
 Section.textbox = Section.Textbox
 Section.button = Section.Button
+Section.AddButton = Section.Button
+Section.add_button = Section.Button
 Section.label = Section.Label
 Section.keybind = Section.Keybind
 Section.colorpicker = Section.Colorpicker

@@ -18,6 +18,8 @@ loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 
 The executor example above handles asset loading and opens the full demo. For a custom executor menu, load the library first:
 
+`BacktrackUI.new()` creates the window shell only. It does not add starter tabs, controls, dock tabs, or utility panels. Build the interface by adding the pieces you need; the example client explicitly builds its own demo layout.
+
 ```lua
 local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/backtrack_ui.lua"
 local cacheBuster = tostring(math.floor(os.clock() * 1000000))
@@ -69,11 +71,41 @@ display:Button({
 })
 ```
 
-The dock includes a Lua Modules panel by default. Modules can be added in its editor or registered from the host script:
+Tabs and buttons accept style overrides and return handles so they can be edited or removed later:
 
 ```lua
-menu:CreateDock()
-menu.LuaModules:AddModule("Notice", [[
+local customTab = menu:AddTab({
+    name = "Tools",
+    iconText = "T",
+    width = 100,
+    activeColor = Color3.fromRGB(80, 220, 150),
+    tooltip = "Custom tools",
+})
+local toolSection = customTab:Column():AddSection("Actions")
+local runButton = toolSection:AddButton({
+    text = "Run",
+    style = {
+        accentColor = Color3.fromRGB(80, 220, 150),
+        surfaceColor = Color3.fromRGB(28, 42, 36),
+        hoverColor = Color3.fromRGB(80, 220, 150),
+    },
+    callback = function() print("Run") end,
+})
+runButton:SetText("Run again")
+```
+
+`CreateDock()` also starts empty. `AddTab()` returns a configurable dock item handle, `AddButton()` adds an action button, and `AddWindow()` / `AddPanel()` explicitly link windows. Create the optional Lua Modules panel separately when you want it:
+
+```lua
+local modules = menu:CreateLuaModuleManager()
+local dock = menu:CreateDock({ buttonSize = 25, spacing = 5 })
+dock:AddWindow("Main", menu, "main")
+dock:AddPanel(modules.Panel, { name = "Lua Modules", icon = "lua" })
+dock:AddTab({ name = "Quick action", iconText = "!", callback = function()
+    print("Quick action")
+end })
+
+modules:AddModule("Notice", [[
 local menu = ...
 menu:Notify("The module ran.", 3, "success")
 ]])
@@ -89,11 +121,11 @@ The [example client](example.client.lua) loads the public library directly from 
 - Equal-width tabs, fill-height columns and sections, nested columns, source-style section tabs, scrollable sections, and collapsible configuration groups.
 - Toggle, slider, single and multiselect dropdown, textbox, action button, label, divider, keybind, and HSV color picker with opacity.
 - Source-style button-holder rows, multi-button rows, scrolling lists, output logs, hover tooltips, and notifications.
-- Source-sized detached utility panels, a draggable navigation dock with square icon buttons whose tint indicates each window's open state, pixel cursor, keybind list, watermark, and notifications. Each dock button toggles its own independent ScreenGui; each window can also be closed from its title bar.
+- Source-sized detached utility panels, a customizable draggable dock with manually added icon buttons, pixel cursor, keybind list, watermark, and notifications. `dock:AddWindow()` links a panel or main window; `dock:AddTab()` and `dock:AddButton()` add custom actions. Nothing is inserted into the dock automatically.
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:CreateWatermark(text)` returns a draggable watermark handle with `SetText`, `SetVisible`, `SetPosition`, `GetPosition`, and `Destroy`. It respects the Roblox topbar inset by default; pass `position`, `displayOrder`, or `ignoreGuiInset` in its options to customize placement.
-- `menu:CreateDock()` adds a `Lua Modules` dock button by default. The module panel lets users name, add, run, and remove Lua source for the current UI session. Use `menu:CreateDock({ luaModules = false })` to omit it. The manager is also available as `menu.LuaModules` or from `menu:CreateLuaModuleManager()`; `AddModule(name, source)`, `RunModule(name)`, `RemoveModule(name)`, and `GetModules()` are available. A module receives `menu` and the manager as its first two chunk arguments (`local menu, moduleManager = ...`). Source runs only when the user clicks **Run** and requires executor `loadstring` support.
+- `menu:CreateLuaModuleManager(options)` creates an optional Lua source editor panel. Add its panel to a dock explicitly with `dock:AddPanel(manager.Panel)`. Users can add, run, and remove modules for the current UI session. The manager is also available as `menu.LuaModules`; `AddModule(name, source)`, `RunModule(name)`, `RemoveModule(name)`, and `GetModules()` are available. A module receives `menu` and the manager as its first two chunk arguments (`local menu, moduleManager = ...`). Source runs only when the user clicks **Run** and requires executor `loadstring` support.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
 Controls accept a `flag` and `callback`. Flags default to a generated name when omitted. A color picker returns `{ color = Color3, alpha = number }` from `Get()` and calls its callback with `(color, alpha)`. A keybind returns `{ key = EnumItem, mode = string, active = boolean }`.
@@ -103,6 +135,8 @@ Controls accept a `flag` and `callback`. Flags default to a generated name when 
 `Column:MultiSection({ names = { ... } })` returns one section object per name. Each section is selected by its inline tab; a section exposes `SetActive()` through its `MultiSection` field. `Column:Column()` creates a nested fill-height column, and detached panels support `panel:AddColumn()`.
 
 `Section:ButtonHolder()` starts a horizontal action row. Following `Section:Button()` calls are placed in that row until another button holder is created. Use `Section:MultiButton()` when the buttons should stay inside a single labeled row.
+
+`Section:AddButton()` is an alias for `Section:Button()`. Its handle supports `SetText`, `SetCallback`, `SetVisible`, `SetTooltip`, `SetStyle`, and `Destroy`. Main tabs support the matching add, visibility, order, icon, text, style, callback, and destroy operations; `menu:GetTabs()`, `menu:RemoveTab(nameOrHandle)`, and `menu:ClearTabs()` manage them. Dock tabs also have mutable handles; use `dock:RemoveTab(nameOrHandle)` or `dock:Clear()` to remove items.
 
 The lowercase methods are available for compact builder code:
 
