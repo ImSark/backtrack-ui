@@ -254,48 +254,6 @@ local function connect(window, signal, callback)
 	return connection
 end
 
-local function dragPosition(frame, startPosition, delta, snap)
-	local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1024, 768)
-	local size = frame.AbsoluteSize
-	local anchorPoint = frame.AnchorPoint
-	local x = math.clamp(startPosition.X + delta.X, 0, math.max(0, viewport.X - size.X))
-	local y = math.clamp(startPosition.Y + delta.Y, 0, math.max(0, viewport.Y - size.Y))
-	if snap then
-		local snapTo = function(value, target)
-			return math.abs(value - target) <= 16 and target or value
-		end
-		x = snapTo(snapTo(snapTo(x, 0), (viewport.X - size.X) / 2), viewport.X - size.X)
-		y = snapTo(snapTo(snapTo(y, 0), (viewport.Y - size.Y) / 2 - 59), viewport.Y - size.Y)
-	end
-	return UDim2.fromOffset(x + size.X * anchorPoint.X, y + size.Y * anchorPoint.Y)
-end
-
-local function makeDraggable(window, frame, onStart, onEnd)
-	frame.Active = true
-	local startPosition, startInput, startedAt
-	connect(window, frame.InputBegan, function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			if startInput then return end
-			startPosition = frame.AbsolutePosition
-			startInput = Vector2.new(input.Position.X, input.Position.Y)
-			startedAt = os.clock()
-			if onStart then onStart(input) end
-		end
-	end)
-	connect(window, UserInputService.InputChanged, function(input)
-		if startInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local position = Vector2.new(input.Position.X, input.Position.Y)
-			frame.Position = dragPosition(frame, startPosition, position - startInput, os.clock() - startedAt >= 0.75)
-		end
-	end)
-	connect(window, UserInputService.InputEnded, function(input)
-		if startInput and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-			startPosition, startInput, startedAt = nil, nil, nil
-			if onEnd then onEnd(input) end
-		end
-	end)
-end
-
 local function makeResizable(window, frame)
 	local handle = create("TextButton", {
 		Name = "ResizeHandle",
@@ -445,7 +403,6 @@ function BacktrackUI.new(options)
 		BackgroundColor3 = self.Theme.outline,
 		BorderSizePixel = 0,
 		ClipsDescendants = false,
-		Active = true,
 	}, self.Gui)
 	local glowImage = self.Images.glow4 or self.Images.glow
 	if glowImage then
@@ -606,13 +563,27 @@ end
 BacktrackUI.Create = BacktrackUI.new
 
 function BacktrackUI:_makeDrag()
-	makeDraggable(self, self.Outer, function()
-		self._draggingWindow = true
-		self._nextDisplayOrder = self._nextDisplayOrder + 1
-		self.Gui.DisplayOrder = self._nextDisplayOrder
-		self:_closePopup()
-	end, function()
-		self._draggingWindow = false
+	local startPosition
+	local startInput
+	connect(self, self.Header.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self._draggingWindow = true
+			self._nextDisplayOrder = self._nextDisplayOrder + 1
+			self.Gui.DisplayOrder = self._nextDisplayOrder
+			startPosition = self.Outer.Position
+			startInput = input.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if self._draggingWindow and startInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - startInput
+			self.Outer.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + delta.X, startPosition.Y.Scale, startPosition.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self._draggingWindow = false
+		end
 	end)
 end
 
@@ -1177,7 +1148,21 @@ function BacktrackUI:CreateKeybindList(options)
 	gradient(listSurface, self.Theme.contrastTop, self.Theme.contrastBottom)
 	create("UIListLayout", { Padding = UDim.new(0, -1), SortOrder = Enum.SortOrder.LayoutOrder }, listSurface)
 	create("UIPadding", { PaddingBottom = UDim.new(0, 4), PaddingLeft = UDim.new(0, 5) }, listSurface)
-	makeDraggable(self, frame)
+	local dragStart, positionStart
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragStart, positionStart = input.Position, frame.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if dragStart and positionStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(positionStart.X.Scale, positionStart.X.Offset + delta.X, positionStart.Y.Scale, positionStart.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
+	end)
 	makeResizable(self, frame)
 	local handle = { Object = frame, Rows = listSurface, _window = self }
 	function handle:SetVisible(visible) frame.Visible = visible ~= false end
@@ -1333,9 +1318,28 @@ function BacktrackUI:CreatePanel(title, options)
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	}, contentFrame)
 	create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, content)
-	makeDraggable(self, frame, function()
-		panel:BringToFront()
-		self:_closePopup()
+	local start, inputStart
+	connect(self, bar.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			panel:BringToFront()
+			start, inputStart = frame.Position, input.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if start and inputStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - inputStart
+			frame.Position = UDim2.new(start.X.Scale, start.X.Offset + delta.X, start.Y.Scale, start.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			start = nil
+		end
+	end)
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			panel:BringToFront()
+		end
 	end)
 	makeResizable(self, frame)
 
@@ -1470,7 +1474,21 @@ function BacktrackUI:CreateWatermark(text, options)
 		automaticSize = Enum.AutomaticSize.X,
 	})
 	create("UIStroke", { LineJoinMode = Enum.LineJoinMode.Miter }, textLabel)
-	makeDraggable(self, badge)
+	local start, inputStart
+	connect(self, badge.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			start, inputStart = badge.Position, input.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if start and inputStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - inputStart
+			badge.Position = UDim2.new(start.X.Scale, start.X.Offset + delta.X, start.Y.Scale, start.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then start = nil end
+	end)
 	return {
 		Object = badge,
 		Text = textLabel,
@@ -1550,7 +1568,21 @@ function BacktrackUI:CreateDock(options)
 		PaddingLeft = UDim.new(0, 4),
 		PaddingRight = UDim.new(0, 4),
 	}, holder)
-	makeDraggable(self, frame)
+	local dragStart, positionStart
+	connect(self, frame.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragStart, positionStart = input.Position, frame.Position
+		end
+	end)
+	connect(self, UserInputService.InputChanged, function(input)
+		if dragStart and positionStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(positionStart.X.Scale, positionStart.X.Offset + delta.X, positionStart.Y.Scale, positionStart.Y.Offset + delta.Y)
+		end
+	end)
+	connect(self, UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragStart = nil end
+	end)
 	function dock:AddButton(name, icon, callback, isOpen, stateSignals)
 		local image = type(icon) == "string" and (self._window.Images[icon] or (icon:match("^rbxassetid://") and icon)) or nil
 		local item = create("TextButton", {
