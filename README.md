@@ -2,7 +2,7 @@
 
 A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example recreates the four main tabs (`Combat`, `Players`, `Misc`, and `Visuals`) plus the separate `Style`, `Configurations`, `Playerlist`, and `Output` windows. It follows the source window sizes and screen-relative positions, square 25×25 dock icons, rose accent, dark blue-grey gradients, pixel icons, Tahoma font, and watermark treatment. Dock icons tint rose while their own window is open and inline-grey while it is closed.
 
-The library builds interface elements and invokes callbacks supplied by the host script; it does not include the source script's game behavior. Its optional Lua Modules dock panel runs user-entered module source only when the user clicks **Run**. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It loads the PNG UI images and original Tahoma font through executor asset APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
+The library builds interface elements and invokes callbacks supplied by the host script; it does not include the source script's game behavior. Its optional Lua Modules panel supports custom module definitions with settings and enable/disable lifecycle callbacks, as well as one-shot scripts. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It loads the PNG UI images and original Tahoma font through executor asset APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
 
 ## Executor loader
 
@@ -125,7 +125,52 @@ The [example client](example.client.lua) loads the public library directly from 
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:CreateWatermark(text)` returns a draggable watermark handle with `SetText`, `SetVisible`, `SetPosition`, `GetPosition`, and `Destroy`. It respects the Roblox topbar inset by default; pass `position`, `displayOrder`, or `ignoreGuiInset` in its options to customize placement.
-- `menu:CreateLuaModuleManager(options)` creates an optional Lua source editor panel. Add its panel to a dock explicitly with `dock:AddPanel(manager.Panel)`. Users can add, run, and remove modules for the current UI session. The manager is also available as `menu.LuaModules`; `AddModule(name, source)`, `RunModule(name)`, `RemoveModule(name)`, and `GetModules()` are available. A module receives `menu` and the manager as its first two chunk arguments (`local menu, moduleManager = ...`). Source runs only when the user clicks **Run** and requires executor `loadstring` support.
+- `menu:CreateLuaModuleManager(options)` creates an optional Lua module editor and manager. Add its panel to a dock explicitly with `dock:AddPanel(manager.Panel)`. Modules can declare settings, enable/disable behavior, and setting-change callbacks; their Settings button opens generated controls. Supported setting types are `toggle`, `slider`, `dropdown`, `multidropdown`, `textbox`, `colorpicker`, `keybind`, `button`, and `label`. A module receives `menu`, the manager, and its module context as chunk arguments (`local menu, manager, module = ...`). Definition sources are compiled when first enabled or run and require executor `loadstring` support. Legacy scripts that return no definition remain available as one-shot **Run** modules.
+
+Example module source to paste into the editor:
+
+```lua
+local menu, manager, module = ...
+
+return {
+    Settings = {
+        Active = { type = "toggle", default = true },
+        Strength = { type = "slider", min = 0, max = 100, step = 5, default = 35 },
+        Mode = { type = "dropdown", items = { "Quiet", "Balanced", "Loud" }, default = "Balanced" },
+        Accent = { type = "colorpicker", default = Color3.fromRGB(255, 98, 127), alpha = 1 },
+        Shortcut = { type = "keybind", key = Enum.KeyCode.RightShift, mode = "Toggle" },
+        Label = { type = "textbox", default = "My module" },
+        Reset = { type = "button", text = "Reset", callback = function(module)
+            module:Set("Strength", 35)
+        end },
+    },
+
+    OnEnable = function(module, menu, manager)
+        local color = module:Get("Accent") -- { color = Color3, alpha = number }
+        menu:Notify("Enabled " .. module:Get("Label"), 3, "success")
+    end,
+
+    OnSettingChanged = function(name, value, module)
+        -- Apply changed settings to your module's behavior here.
+    end,
+
+    OnDisable = function(module, menu, manager)
+        -- Stop or clean up anything started in OnEnable.
+    end,
+}
+```
+
+The module context provides `Get(name)`, `Set(name, value, silent)`, `Notify(...)`, `Enable()`, `Disable()`, `IsEnabled()`, and `OpenSettings()`. `OnEnable` and `OnDisable` receive `(module, menu, manager)`. A setting's `callback`/`onChanged` receives `(value, module, name)`; the module-level `OnSettingChanged` receives `(name, value, module)`. Color picker values use `{ color = Color3, alpha = number }`.
+
+The manager API also exposes `AddModule(name, source, options)`, `GetModule(name)`, `GetModules()`, `LoadModule(name)`, `OpenSettings(name)`, `EnableModule(name)`, `DisableModule(name)`, `SetModuleEnabled(name, bool)`, `RunModule(name)`, `RemoveModule(name)`, and `Destroy()`. Definitions can be registered directly without source text:
+
+```lua
+manager:AddModule("Demo", "", {
+    Settings = { Enabled = { type = "toggle", default = true } },
+    OnEnable = function(module) print("Demo enabled", module:Get("Enabled")) end,
+    OnDisable = function(module) print("Demo disabled") end,
+})
+```
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
 Controls accept a `flag` and `callback`. Flags default to a generated name when omitted. A color picker returns `{ color = Color3, alpha = number }` from `Get()` and calls its callback with `(color, alpha)`. A keybind returns `{ key = EnumItem, mode = string, active = boolean }`.
