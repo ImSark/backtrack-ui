@@ -67,6 +67,77 @@ local function mergeTheme(overrides, base)
 	return theme
 end
 
+local function applyThemeChanges(self)
+	local previous = self._appliedTheme or {}
+	local nextTheme = self.Theme
+	local changedColors = {}
+	local fontChanged = previous.fontFace ~= nextTheme.fontFace
+	local contrastChanged = previous.contrastTop ~= nextTheme.contrastTop or previous.contrastBottom ~= nextTheme.contrastBottom
+	for key, oldColor in pairs(previous) do
+		local newColor = nextTheme[key]
+		if oldColor ~= newColor and typeof(oldColor) == "Color3" and typeof(newColor) == "Color3" and changedColors[oldColor] == nil then
+			changedColors[oldColor] = newColor
+		end
+	end
+
+	local hasColorChanges = next(changedColors) ~= nil
+	if not hasColorChanges and not fontChanged and not contrastChanged then
+		self._appliedTheme = mergeTheme(nextTheme)
+		return
+	end
+
+	local themeGuis = { self.Gui }
+	if self.OverlayGui then table.insert(themeGuis, self.OverlayGui) end
+	for _, watermark in ipairs(self._watermarks) do
+		if watermark.Gui and watermark.Gui.Parent then table.insert(themeGuis, watermark.Gui) end
+	end
+	for _, panel in ipairs(self._panels) do
+		if panel.Gui and panel.Gui.Parent then table.insert(themeGuis, panel.Gui) end
+	end
+	local textClasses = { TextLabel = true, TextButton = true, TextBox = true }
+	for _, gui in ipairs(themeGuis) do
+		GuiThemes[gui] = nextTheme
+		for _, object in ipairs(gui:GetDescendants()) do
+			if fontChanged and (object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")) then
+				if nextTheme.fontFace then
+					pcall(function() object.FontFace = nextTheme.fontFace end)
+				else
+					pcall(function() object.Font = Enum.Font.Legacy end)
+				end
+			end
+			if contrastChanged and object:IsA("UIGradient") and object.Name == "ThemeGradient" then
+				object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
+			end
+			if hasColorChanges then
+				if object:IsA("UIStroke") then
+					local replacement = changedColors[object.Color]
+					if replacement then object.Color = replacement end
+				elseif object:IsA("GuiObject") then
+					local replacement = changedColors[object.BackgroundColor3]
+					if replacement then object.BackgroundColor3 = replacement end
+					replacement = changedColors[object.BorderColor3]
+					if replacement then object.BorderColor3 = replacement end
+					if textClasses[object.ClassName] then
+						replacement = changedColors[object.TextColor3]
+						if replacement then object.TextColor3 = replacement end
+						replacement = changedColors[object.TextStrokeColor3]
+						if replacement then object.TextStrokeColor3 = replacement end
+					end
+					if object:IsA("ImageLabel") or object:IsA("ImageButton") then
+						replacement = changedColors[object.ImageColor3]
+						if replacement then object.ImageColor3 = replacement end
+					end
+					if object:IsA("ScrollingFrame") then
+						replacement = changedColors[object.ScrollBarImageColor3]
+						if replacement then object.ScrollBarImageColor3 = replacement end
+					end
+				end
+			end
+		end
+	end
+	self._appliedTheme = mergeTheme(nextTheme)
+end
+
 local function create(className, properties, parent)
 	local object = Instance.new(className)
 	for key, value in pairs(properties or {}) do
@@ -368,6 +439,7 @@ function BacktrackUI.new(options)
 
 	local self = setmetatable({
 		Theme = mergeTheme(options.theme),
+		_appliedTheme = mergeTheme(options.theme),
 		Images = options.images or {},
 		_Connections = {},
 		_connections = {},
@@ -845,41 +917,25 @@ function BacktrackUI:_syncCursor()
 end
 
 function BacktrackUI:SetTheme(overrides)
-	local previous = {}
-	for key, value in pairs(self.Theme) do previous[key] = value end
 	local nextTheme = mergeTheme(overrides, self.Theme)
 	for key, value in pairs(nextTheme) do self.Theme[key] = value end
-	local properties = { "BackgroundColor3", "TextColor3", "TextStrokeColor3", "ImageColor3", "ScrollBarImageColor3", "BorderColor3" }
 	local themeGuis = { self.Gui }
 	if self.OverlayGui then table.insert(themeGuis, self.OverlayGui) end
 	for _, watermark in ipairs(self._watermarks) do
 		if watermark.Gui and watermark.Gui.Parent then table.insert(themeGuis, watermark.Gui) end
 	end
-	for _, panel in ipairs(self._panels) do table.insert(themeGuis, panel.Gui) end
-	for _, gui in ipairs(themeGuis) do
-		GuiThemes[gui] = self.Theme
-		for _, object in ipairs(gui:GetDescendants()) do
-			if previous.fontFace ~= nextTheme.fontFace and (object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")) then
-				if nextTheme.fontFace then
-					pcall(function() object.FontFace = nextTheme.fontFace end)
-				else
-					pcall(function() object.Font = Enum.Font.Legacy end)
-				end
-			end
-			if object:IsA("UIGradient") and object.Name == "ThemeGradient" then
-				object.Color = ColorSequence.new(nextTheme.contrastTop, nextTheme.contrastBottom)
-			end
-			for key, oldColor in pairs(previous) do
-				local newColor = nextTheme[key]
-				if oldColor ~= newColor then
-					if object:IsA("UIStroke") and object.Color == oldColor then object.Color = newColor end
-					for _, property in ipairs(properties) do
-						local ok, current = pcall(function() return object[property] end)
-						if ok and current == oldColor then pcall(function() object[property] = newColor end) end
-					end
-				end
-			end
-		end
+	for _, panel in ipairs(self._panels) do
+		if panel.Gui and panel.Gui.Parent then table.insert(themeGuis, panel.Gui) end
+	end
+	for _, gui in ipairs(themeGuis) do GuiThemes[gui] = self.Theme end
+	if self._destroyed then return self.Theme end
+	if not self._themeRefreshConnection then
+		self._themeRefreshConnection = RunService.RenderStepped:Connect(function()
+			local connection = self._themeRefreshConnection
+			self._themeRefreshConnection = nil
+			if connection then connection:Disconnect() end
+			if not self._destroyed then applyThemeChanges(self) end
+		end)
 	end
 	return self.Theme
 end
@@ -2864,6 +2920,10 @@ end
 function BacktrackUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
+	if self._themeRefreshConnection then
+		self._themeRefreshConnection:Disconnect()
+		self._themeRefreshConnection = nil
+	end
 	if self.Dock then self.Dock:Destroy(); self.Dock = nil end
 	self:_restoreCursor()
 	self:_closePopup()
