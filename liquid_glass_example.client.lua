@@ -9,6 +9,7 @@ local ui = LiquidGlassUI.new({
 	footer = "LIQUID GLASS  ·  INTERACTIVE DEMO",
 	toggleKey = Enum.KeyCode.RightShift,
 	size = UDim2.fromOffset(720, 500),
+	blur = 14,
 })
 
 local home = ui:AddTab({ name = "Overview", iconText = "◈" })

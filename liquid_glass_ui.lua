@@ -9,17 +9,17 @@ LiquidGlassUI.__index = LiquidGlassUI
 
 LiquidGlassUI.Version = "1.0.0"
 LiquidGlassUI.Theme = {
-	background = Color3.fromRGB(11, 15, 24),
-	glass = Color3.fromRGB(27, 35, 52),
-	glassTop = Color3.fromRGB(52, 66, 91),
-	glassBottom = Color3.fromRGB(20, 28, 43),
-	control = Color3.fromRGB(35, 45, 64),
-	controlHover = Color3.fromRGB(48, 61, 84),
+	background = Color3.fromRGB(27, 40, 58),
+	glass = Color3.fromRGB(48, 70, 101),
+	glassTop = Color3.fromRGB(211, 231, 255),
+	glassBottom = Color3.fromRGB(44, 68, 103),
+	control = Color3.fromRGB(113, 147, 190),
+	controlHover = Color3.fromRGB(157, 192, 232),
 	accent = Color3.fromRGB(131, 199, 255),
-	accentSecondary = Color3.fromRGB(179, 165, 255),
+	accentSecondary = Color3.fromRGB(199, 181, 255),
 	text = Color3.fromRGB(244, 248, 255),
-	muted = Color3.fromRGB(163, 177, 201),
-	border = Color3.fromRGB(226, 238, 255),
+	muted = Color3.fromRGB(194, 212, 237),
+	border = Color3.fromRGB(246, 250, 255),
 	positive = Color3.fromRGB(125, 225, 178),
 	negative = Color3.fromRGB(255, 132, 153),
 }
@@ -27,6 +27,7 @@ LiquidGlassUI.Theme = {
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 local getHiddenGui = gethui or get_hidden_gui
 
 local function mergeTheme(overrides, base)
@@ -162,6 +163,21 @@ function LiquidGlassUI.new(options)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, parent)
 	window.Gui = screen
+	local requestedBlur = options.blur
+	window._blurSize = requestedBlur == false and 0 or math.clamp(tonumber(requestedBlur) or 12, 0, 56)
+	if window._blurSize > 0 then
+		local blur = Instance.new("BlurEffect")
+		blur.Name = "LiquidGlassUI_BackdropBlur"
+		blur.Size = 0
+		blur.Enabled = true
+		blur.Parent = Workspace.CurrentCamera
+		window._blurEffect = blur
+		connect(window, Workspace:GetPropertyChangedSignal("CurrentCamera"), function()
+			blur.Parent = Workspace.CurrentCamera
+		end)
+		window._blurTween = TweenService:Create(blur, TweenInfo.new(0.36, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = window._blurSize })
+		window._blurTween:Play()
+	end
 
 	local width = options.width or 700
 	local height = options.height or 490
@@ -171,21 +187,22 @@ function LiquidGlassUI.new(options)
 		Position = options.position or UDim2.fromScale(0.5, 0.5),
 		Size = options.size or UDim2.fromOffset(width, height),
 		BackgroundColor3 = window.Theme.glass,
-		BackgroundTransparency = 0.2,
+		BackgroundTransparency = 0.44,
 		BorderSizePixel = 0,
 		ClipsDescendants = false,
 		ZIndex = 1,
 	}, screen)
 	window.Frame = shell
 	corner(shell, 20)
-	window.Outline = outline(shell, window.Theme.border, 0.62, 1)
-	window.GlassGradient = gradient(shell, window.Theme.glassTop, window.Theme.glassBottom, 110, NumberSequence.new(0.25, 0.54))
+	window.Outline = outline(shell, window.Theme.border, 0.32, 1.35)
+	window.GlowStroke = outline(shell, window.Theme.accent, 0.88, 4)
+	window.GlassGradient = gradient(shell, window.Theme.glassTop, window.Theme.glassBottom, 110, NumberSequence.new(0.38, 0.74))
 	local shadow = create("Frame", {
 		Name = "GlassShadow",
 		Position = UDim2.fromOffset(0, 8),
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.58,
+		BackgroundTransparency = 0.48,
 		BorderSizePixel = 0,
 		ZIndex = 0,
 	}, shell)
@@ -199,13 +216,13 @@ function LiquidGlassUI.new(options)
 		Position = UDim2.fromOffset(1, 1),
 		Size = UDim2.new(1, -2, 0, 100),
 		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.92,
+		BackgroundTransparency = 0.78,
 		BorderSizePixel = 0,
 		ZIndex = 2,
 	}, shell)
 	corner(sheen, 19)
 gradient(sheen, Color3.new(1, 1, 1), Color3.fromRGB(155, 190, 245), 90, NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 0.55),
+	NumberSequenceKeypoint.new(0, 0.2),
 	NumberSequenceKeypoint.new(1, 1),
 }))
 window.Sheen = sheen
@@ -216,9 +233,39 @@ window.Sheen = sheen
 		Size = UDim2.new(1, -28, 0, 46),
 		BackgroundTransparency = 1,
 		Active = true,
+		ClipsDescendants = true,
 		ZIndex = 4,
 	}, shell)
 	window.Header = header
+	local glint = create("Frame", {
+		Name = "SpecularGlint",
+		Position = UDim2.new(-0.3, 0, 0, 0),
+		Size = UDim2.new(0.28, 0, 1, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.7,
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, header)
+	corner(glint, 18)
+	create("UIGradient", {
+		Rotation = 0,
+		Color = ColorSequence.new(Color3.new(1, 1, 1), window.Theme.accent),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.45, 0.12),
+			NumberSequenceKeypoint.new(0.55, 0.12),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+	}, glint)
+	local glintTween
+	connect(window, header.MouseEnter, function()
+		if glintTween then glintTween:Cancel() end
+		glint.Position = UDim2.new(-0.3, 0, 0, 0)
+		glintTween = TweenService:Create(glint, TweenInfo.new(0.72, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = UDim2.new(1.05, 0, 0, 0),
+		})
+		glintTween:Play()
+	end)
 	local brand = create("Frame", {
 		Name = "BrandMark",
 		Position = UDim2.fromOffset(0, 5),
@@ -251,7 +298,7 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		Position = UDim2.new(1, 0, 0, 5),
 		Size = UDim2.fromOffset(34, 34),
 		BackgroundColor3 = window.Theme.control,
-		BackgroundTransparency = 0.28,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Text = "×",
@@ -261,14 +308,15 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		ZIndex = 6,
 	}, header)
 	corner(window.CloseButton, 12)
-	window.CloseOutline = outline(window.CloseButton, window.Theme.border, 0.86, 1)
+	window.CloseOutline = outline(window.CloseButton, window.Theme.border, 0.58, 1)
+	window.CloseGradient = gradient(window.CloseButton, window.Theme.glassTop, window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	window.MinimizeButton = create("TextButton", {
 		Name = "Minimize",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -40, 0, 5),
 		Size = UDim2.fromOffset(34, 34),
 		BackgroundColor3 = window.Theme.control,
-		BackgroundTransparency = 0.28,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Text = "−",
@@ -278,7 +326,8 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		ZIndex = 6,
 	}, header)
 	corner(window.MinimizeButton, 12)
-	window.MinimizeOutline = outline(window.MinimizeButton, window.Theme.border, 0.86, 1)
+	window.MinimizeOutline = outline(window.MinimizeButton, window.Theme.border, 0.58, 1)
+	window.MinimizeGradient = gradient(window.MinimizeButton, window.Theme.glassTop, window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 
 	local separator = create("Frame", {
 		Name = "HeaderSeparator",
@@ -303,7 +352,7 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		Name = "Navigation",
 		Size = UDim2.new(0, 154, 1, 0),
 		BackgroundColor3 = window.Theme.background,
-		BackgroundTransparency = 0.42,
+		BackgroundTransparency = 0.6,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 2,
 		ScrollBarImageColor3 = window.Theme.accent,
@@ -313,7 +362,8 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		ZIndex = 3,
 	}, body)
 	corner(nav, 15)
-	window.NavOutline = outline(nav, window.Theme.border, 0.9, 1)
+	window.NavOutline = outline(nav, window.Theme.border, 0.62, 1)
+	window.NavGradient = gradient(nav, window.Theme.glassTop, window.Theme.glassBottom, 100, NumberSequence.new(0.68, 0.86))
 	window.Navigation = nav
 	create("UIPadding", {
 		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11),
@@ -345,6 +395,7 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		if not shell.Parent then return end
 		shell.BackgroundColor3 = window.Theme.glass
 		window.Outline.Color = window.Theme.border
+		window.GlowStroke.Color = window.Theme.accent
 		window.GlassGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
 		window.BrandMark.BackgroundColor3 = window.Theme.accent
 		window.BrandGradient.Color = ColorSequence.new(window.Theme.accent, window.Theme.accentSecondary)
@@ -354,9 +405,12 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 		window.MinimizeButton.TextColor3 = window.Theme.text
 		window.CloseOutline.Color = window.Theme.border
 		window.MinimizeOutline.Color = window.Theme.border
+		window.CloseGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
+		window.MinimizeGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
 		window.HeaderSeparator.BackgroundColor3 = window.Theme.border
 		window.Navigation.BackgroundColor3 = window.Theme.background
 		window.NavOutline.Color = window.Theme.border
+		window.NavGradient.Color = ColorSequence.new(window.Theme.glassTop, window.Theme.glassBottom)
 		window.Navigation.ScrollBarImageColor3 = window.Theme.accent
 		window.Footer.TextColor3 = window.Theme.muted
 	end)
@@ -417,7 +471,38 @@ end
 function LiquidGlassUI:SetVisible(visible)
 	self._visible = visible ~= false
 	self.Gui.Enabled = self._visible
+	if self._blurEffect then
+		if self._blurTween then self._blurTween:Cancel() end
+		self._blurEffect.Enabled = true
+		self._blurTween = TweenService:Create(self._blurEffect, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = self._visible and self._blurSize or 0,
+		})
+		self._blurTween:Play()
+	end
 	return self._visible
+end
+
+function LiquidGlassUI:SetBlur(amount)
+	self._blurSize = math.clamp(tonumber(amount) or 0, 0, 56)
+	if self._blurSize > 0 and not self._blurEffect then
+		local blur = Instance.new("BlurEffect")
+		blur.Name = "LiquidGlassUI_BackdropBlur"
+		blur.Size = 0
+		blur.Parent = Workspace.CurrentCamera
+		self._blurEffect = blur
+		connect(self, Workspace:GetPropertyChangedSignal("CurrentCamera"), function()
+			blur.Parent = Workspace.CurrentCamera
+		end)
+	end
+	if self._blurEffect then
+		if self._blurTween then self._blurTween:Cancel() end
+		self._blurEffect.Enabled = self._blurSize > 0
+		self._blurTween = TweenService:Create(self._blurEffect, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = self._visible and self._blurSize or 0,
+		})
+		self._blurTween:Play()
+	end
+	return self._blurSize
 end
 
 function LiquidGlassUI:Toggle()
@@ -475,7 +560,7 @@ function LiquidGlassUI:AddTab(name, iconText)
 		Name = "Page_" .. tab.Name,
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = self.Theme.background,
-		BackgroundTransparency = 0.5,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 3,
 		ScrollBarImageColor3 = self.Theme.accent,
@@ -486,7 +571,7 @@ function LiquidGlassUI:AddTab(name, iconText)
 		ZIndex = 3,
 	}, self.Content)
 	corner(page, 14)
-	local pageOutline = outline(page, self.Theme.border, 0.92, 1)
+	local pageOutline = outline(page, self.Theme.border, 1, 1)
 	create("UIPadding", {
 		PaddingTop = UDim.new(0, 13), PaddingBottom = UDim.new(0, 13),
 		PaddingLeft = UDim.new(0, 13), PaddingRight = UDim.new(0, 13),
@@ -498,7 +583,7 @@ function LiquidGlassUI:AddTab(name, iconText)
 	local function refreshTheme()
 		local selected = self.ActiveTab == tab
 		button.BackgroundColor3 = selected and self.Theme.accent or self.Theme.control
-		button.BackgroundTransparency = selected and 0.84 or 1
+		button.BackgroundTransparency = selected and 0.7 or 1
 		icon.TextColor3 = selected and self.Theme.accent or self.Theme.muted
 		nameLabel.TextColor3 = selected and self.Theme.text or self.Theme.muted
 		page.BackgroundColor3 = self.Theme.background
@@ -544,13 +629,13 @@ function Tab:AddSection(name, options)
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = self._window.Theme.glass,
-		BackgroundTransparency = 0.26,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		ZIndex = 4,
 	}, self.Page)
 	corner(card, 15)
-	section.Outline = outline(card, self._window.Theme.border, 0.86, 1)
-	section.GlassGradient = gradient(card, self._window.Theme.glassTop, self._window.Theme.glassBottom, 100, NumberSequence.new(0.62, 0.82))
+	section.Outline = outline(card, self._window.Theme.border, 0.56, 1)
+	section.GlassGradient = gradient(card, self._window.Theme.glassTop, self._window.Theme.glassBottom, 100, NumberSequence.new(0.5, 0.84))
 	create("UIPadding", {
 		PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11),
 		PaddingLeft = UDim.new(0, 13), PaddingRight = UDim.new(0, 13),
@@ -640,7 +725,7 @@ function Section:Button(value)
 		Name = "Button",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = self._window.Theme.control,
-		BackgroundTransparency = 0.16,
+		BackgroundTransparency = 0.46,
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		Text = tostring(name),
@@ -650,7 +735,8 @@ function Section:Button(value)
 		ZIndex = 6,
 	}, row)
 	corner(button, 11)
-	local buttonOutline = outline(button, self._window.Theme.border, 0.9, 1)
+	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
+	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.45, 0.88))
 	local handle = makeHandle(self, name, row)
 	handle.Button = button
 	function handle:RefreshTheme()
@@ -658,6 +744,7 @@ function Section:Button(value)
 			button.BackgroundColor3 = self._window.Theme.control
 			button.TextColor3 = self._window.Theme.text
 			buttonOutline.Color = self._window.Theme.border
+			buttonGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
 		end
 	end
 	connect(self._window, button.MouseEnter, function() TweenService:Create(button, TweenInfo.new(0.12), { BackgroundColor3 = self._window.Theme.controlHover }):Play() end)
@@ -676,14 +763,17 @@ function Section:Toggle(value)
 	local textLabel = label(row, name, { Size = UDim2.new(1, -66, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
 	local track = create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(42, 23),
-		BackgroundColor3 = self._window.Theme.control, BorderSizePixel = 0, ZIndex = 7,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.28, BorderSizePixel = 0, ZIndex = 7,
 	}, row)
 	corner(track, 12)
+	local trackOutline = outline(track, self._window.Theme.border, 0.62, 1)
+	local trackGradient = gradient(track, self._window.Theme.control, self._window.Theme.glassTop, 90, NumberSequence.new(0.48, 0.86))
 	local knob = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 3, 0.5, 0), Size = UDim2.fromOffset(17, 17),
 		BackgroundColor3 = self._window.Theme.text, BorderSizePixel = 0, ZIndex = 8,
 	}, track)
 	corner(knob, 9)
+	local knobOutline = outline(knob, self._window.Theme.border, 0.48, 1)
 	local handle = makeHandle(self, name, row)
 	handle.Value = options.default == true
 	handle.Callback = options.callback
@@ -693,7 +783,11 @@ function Section:Toggle(value)
 	function handle:RefreshTheme()
 		if not track.Parent then return end
 		track.BackgroundColor3 = self.Value and self._window.Theme.accent or self._window.Theme.control
+		trackOutline.Color = self._window.Theme.border
+		trackGradient.Color = self.Value and ColorSequence.new(self._window.Theme.accent, self._window.Theme.accentSecondary)
+			or ColorSequence.new(self._window.Theme.control, self._window.Theme.glassTop)
 		knob.BackgroundColor3 = self._window.Theme.text
+		knobOutline.Color = self._window.Theme.border
 		knob.Position = self.Value and UDim2.new(1, -20, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
 		textLabel.TextColor3 = self._window.Theme.text
 	end
@@ -719,17 +813,21 @@ function Section:Slider(value)
 	local valueLabel = label(row, "", { Position = UDim2.new(1, -65, 0, 0), Size = UDim2.fromOffset(65, 19), textSize = 10, color = self._window.Theme.muted, align = Enum.TextXAlignment.Right, zIndex = 6 })
 	local track = create("TextButton", {
 		Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 7),
-		BackgroundColor3 = self._window.Theme.control, BorderSizePixel = 0, AutoButtonColor = false,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.3, BorderSizePixel = 0, AutoButtonColor = false,
 		Text = "", ZIndex = 6,
 	}, row)
 	corner(track, 5)
+	local trackOutline = outline(track, self._window.Theme.border, 0.68, 1)
+	local trackGradient = gradient(track, self._window.Theme.control, self._window.Theme.glassTop, 90, NumberSequence.new(0.48, 0.88))
 	local fill = create("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = self._window.Theme.accent, BorderSizePixel = 0, ZIndex = 7 }, track)
 	corner(fill, 5)
+	local fillGradient = gradient(fill, self._window.Theme.accent, self._window.Theme.accentSecondary, 0, NumberSequence.new(0.05, 0.38))
 	local knob = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.fromOffset(13, 13),
 		BackgroundColor3 = self._window.Theme.text, BorderSizePixel = 0, ZIndex = 8,
 	}, track)
 	corner(knob, 7)
+	local knobOutline = outline(knob, self._window.Theme.border, 0.4, 1)
 	local handle = makeHandle(self, name, row)
 	handle.Min, handle.Max = minimum, maximum
 	handle.Step = tonumber(options.step) or 1
@@ -739,8 +837,12 @@ function Section:Slider(value)
 	function handle:RefreshTheme()
 		if not row.Parent then return end
 		fill.BackgroundColor3 = self._window.Theme.accent
+		fillGradient.Color = ColorSequence.new(self._window.Theme.accent, self._window.Theme.accentSecondary)
 		knob.BackgroundColor3 = self._window.Theme.text
+		knobOutline.Color = self._window.Theme.border
 		track.BackgroundColor3 = self._window.Theme.control
+		trackOutline.Color = self._window.Theme.border
+		trackGradient.Color = ColorSequence.new(self._window.Theme.control, self._window.Theme.glassTop)
 		textLabel.TextColor3 = self._window.Theme.text
 		valueLabel.TextColor3 = self._window.Theme.muted
 	end
@@ -792,11 +894,12 @@ function Section:Dropdown(value)
 	local nameLabel = label(main, name, { Size = UDim2.new(0.47, -4, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
 	local choice = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0.53, 0, 0, 30),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.14, BorderSizePixel = 0,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
 		AutoButtonColor = false, Text = "", ZIndex = 6,
 	}, main)
 	corner(choice, 10)
-	local choiceOutline = outline(choice, self._window.Theme.border, 0.9, 1)
+	local choiceOutline = outline(choice, self._window.Theme.border, 0.58, 1)
+	local choiceGradient = gradient(choice, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	local handle = makeHandle(self, name, row)
 	handle.Items = items
 	handle.Value = options.default or items[1]
@@ -810,6 +913,7 @@ function Section:Dropdown(value)
 		choice.BackgroundColor3 = self._window.Theme.control
 		nameLabel.TextColor3 = self._window.Theme.text
 		choiceOutline.Color = self._window.Theme.border
+		choiceGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
 		choiceLabel.TextColor3 = self._window.Theme.text
 		arrow.TextColor3 = self._window.Theme.muted
 		for _, itemButton in ipairs(list:GetChildren()) do
@@ -836,12 +940,13 @@ function Section:Dropdown(value)
 		for index, item in ipairs(items) do
 			local itemButton = create("TextButton", {
 				Name = "Option_" .. tostring(index), Size = UDim2.new(1, 0, 0, 28),
-				BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.1,
+				BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.38,
 				BorderSizePixel = 0, AutoButtonColor = false, Text = tostring(item),
 				Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text,
 				ZIndex = 9, LayoutOrder = index,
 			}, list)
 			corner(itemButton, 9)
+			gradient(itemButton, self._window.Theme.glassTop, self._window.Theme.glassBottom, 90, NumberSequence.new(0.5, 0.9))
 			connect(self._window, itemButton.Activated, function() set(item) end)
 		end
 		list.Size = UDim2.new(1, 0, 0, math.min(#items, 5) * 28 + math.max(0, math.min(#items, 5) - 1) * 4)
@@ -865,13 +970,14 @@ function Section:Textbox(value)
 	local nameLabel = label(row, name, { Size = UDim2.new(0.44, 0, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
 	local box = create("TextBox", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0.54, 0, 0, 30),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.14, BorderSizePixel = 0,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
 		ClearTextOnFocus = false, Text = tostring(options.default or ""), PlaceholderText = options.placeholder or "Enter text",
 		Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text, PlaceholderColor3 = self._window.Theme.muted,
 		TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
 	}, row)
 	corner(box, 9)
-	local boxOutline = outline(box, self._window.Theme.border, 0.9, 1)
+	local boxOutline = outline(box, self._window.Theme.border, 0.58, 1)
+	local boxGradient = gradient(box, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.5, 0.9))
 	create("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 8) }, box)
 	local handle = makeHandle(self, name, row)
 	handle.Input = box
@@ -890,6 +996,7 @@ function Section:Textbox(value)
 			box.TextColor3 = self._window.Theme.text
 			box.PlaceholderColor3 = self._window.Theme.muted
 			boxOutline.Color = self._window.Theme.border
+			boxGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
 			nameLabel.TextColor3 = self._window.Theme.text
 		end
 	end
@@ -907,11 +1014,13 @@ function Section:Keybind(value)
 	local nameLabel = label(row, name, { Size = UDim2.new(1, -105, 1, 0), textSize = 11, color = self._window.Theme.text, zIndex = 6 })
 	local button = create("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(94, 28),
-		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.15, BorderSizePixel = 0,
+		BackgroundColor3 = self._window.Theme.control, BackgroundTransparency = 0.42, BorderSizePixel = 0,
 		AutoButtonColor = false, Text = "", Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = self._window.Theme.text,
 		ZIndex = 6,
 	}, row)
 	corner(button, 9)
+	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
+	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
 	local handle = makeHandle(self, name, row)
 	handle.Value = normalizeKey(options.default or options.key or Enum.KeyCode.Unknown)
 	handle.Callback = options.callback
@@ -928,6 +1037,8 @@ function Section:Keybind(value)
 		if button.Parent then
 			button.BackgroundColor3 = self._window.Theme.control
 			button.TextColor3 = self._window.Theme.text
+			buttonOutline.Color = self._window.Theme.border
+			buttonGradient.Color = ColorSequence.new(self._window.Theme.glassTop, self._window.Theme.glassBottom)
 			nameLabel.TextColor3 = self._window.Theme.text
 		end
 	end
@@ -948,7 +1059,7 @@ function Section:Colorpicker(value)
 		BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 6,
 	}, row)
 	corner(swatch, 9)
-	local swatchOutline = outline(swatch, self._window.Theme.border, 0.6, 1)
+	local swatchOutline = outline(swatch, self._window.Theme.border, 0.34, 1)
 	local handle = makeHandle(self, name, row)
 	local hue, saturation, brightness = (options.color or self._window.Theme.accent):ToHSV()
 	handle.Color = options.color or self._window.Theme.accent
@@ -1007,13 +1118,13 @@ function Section:Colorpicker(value)
 			Name = "ColorPickerGlass",
 			Size = UDim2.fromOffset(226, 205),
 			BackgroundColor3 = self._window.Theme.glass,
-			BackgroundTransparency = 0.08,
+			BackgroundTransparency = 0.36,
 			BorderSizePixel = 0,
 			ZIndex = 40,
 		}, self._window.Gui)
 		corner(popup, 15)
-		local popupOutline = outline(popup, self._window.Theme.border, 0.55, 1)
-		local popupGradient = gradient(popup, self._window.Theme.glassTop, self._window.Theme.glassBottom, 105, NumberSequence.new(0.2, 0.55))
+		local popupOutline = outline(popup, self._window.Theme.border, 0.3, 1.2)
+		local popupGradient = gradient(popup, self._window.Theme.glassTop, self._window.Theme.glassBottom, 105, NumberSequence.new(0.22, 0.56))
 		local pos = swatch.AbsolutePosition
 		local view = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1024, 768)
 		local x = math.clamp(pos.X - 178, 8, math.max(8, view.X - 234))
@@ -1145,13 +1256,13 @@ function LiquidGlassUI:Notify(message, duration, kind)
 		Position = UDim2.new(1, -18, 1, 70),
 		Size = UDim2.fromOffset(290, 58),
 		BackgroundColor3 = theme.glass,
-		BackgroundTransparency = 0.08,
+		BackgroundTransparency = 0.34,
 		BorderSizePixel = 0,
 		ZIndex = 100,
 	}, self.Gui)
 	corner(toast, 15)
-	outline(toast, theme.border, 0.58, 1)
-	gradient(toast, theme.glassTop, theme.glassBottom, 100, NumberSequence.new(0.28, 0.58))
+	outline(toast, theme.border, 0.32, 1.2)
+	gradient(toast, theme.glassTop, theme.glassBottom, 100, NumberSequence.new(0.24, 0.56))
 	local tint = kind == "success" and theme.positive or (kind == "error" and theme.negative or theme.accent)
 	local accentBar = create("Frame", { Position = UDim2.fromOffset(10, 11), Size = UDim2.fromOffset(3, 36), BackgroundColor3 = tint, BorderSizePixel = 0, ZIndex = 102 }, toast)
 	corner(accentBar, 2)
@@ -1171,6 +1282,8 @@ end
 function LiquidGlassUI:Destroy()
 	if self._destroyed then return end
 	self._destroyed = true
+	if self._blurTween then self._blurTween:Cancel() end
+	if self._blurEffect then self._blurEffect:Destroy(); self._blurEffect = nil end
 	if self._popup then
 		for _, connection in ipairs(self._popup.Connections or {}) do connection:Disconnect() end
 		if self._popup.Frame then self._popup.Frame:Destroy() end
