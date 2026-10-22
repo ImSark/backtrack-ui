@@ -14,6 +14,33 @@ local cacheBuster = tostring(math.floor(os.clock() * 1000000))
 loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 ```
 
+## Separate Liquid Glass library
+
+`liquid_glass_ui.lua` is an independent library with translucent glass panels, reflective gradients, rounded controls, and its own API. It does not replace or modify the Backtrack style library. Load its example with:
+
+```lua
+local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/liquid_glass_example.client.lua"
+local cacheBuster = tostring(math.floor(os.clock() * 1000000))
+loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
+```
+
+Or load the library directly and build only the tabs and controls you need:
+
+```lua
+local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/liquid_glass_ui.lua"
+local cacheBuster = tostring(math.floor(os.clock() * 1000000))
+local LiquidGlassUI = loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
+
+local ui = LiquidGlassUI.new({ title = "My Glass Menu", toggleKey = Enum.KeyCode.RightShift })
+local tab = ui:AddTab({ name = "General", iconText = "◇" })
+local section = tab:AddSection("Settings")
+section:Toggle({ name = "Enabled", default = true, callback = function(value) print(value) end })
+section:Slider({ name = "Amount", min = 0, max = 100, default = 40 })
+section:Button({ name = "Notify", callback = function() ui:Notify("Hello", 3, "success") end })
+```
+
+It includes labels, buttons, toggles, sliders, dropdowns, textboxes, color pickers, and keybinds. `SetTheme`, `SetVisible`, `Toggle`, `SetMinimized`, and `Destroy` control the window after creation. See [liquid_glass_example.client.lua](liquid_glass_example.client.lua) for a complete demo.
+
 ## Library API
 
 The executor example above handles asset loading and opens the full demo. For a custom executor menu, load the library first:
