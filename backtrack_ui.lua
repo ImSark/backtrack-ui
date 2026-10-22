@@ -46,6 +46,7 @@ end
 
 local Players = getService("Players")
 local UserInputService = getService("UserInputService")
+local GuiService = getService("GuiService")
 local TweenService = getService("TweenService")
 local RunService = getService("RunService")
 local getHiddenGui = gethui or get_hidden_gui
@@ -2864,14 +2865,29 @@ function Section:_colorpicker(options, right, owner)
 				marker.Position = UDim2.new(0, -2, hue, -1)
 				hex.Text = "#" .. color:ToHex()
 			end
+			local function getPointerPosition(input)
+				local gui = frame:FindFirstAncestorOfClass("ScreenGui")
+				if input.UserInputType ~= Enum.UserInputType.Touch then
+					local pointer = window.Pointer
+					if pointer and pointer.Parent then
+						return pointer.AbsolutePosition
+					end
+				end
+				local position = Vector2.new(input.Position.X, input.Position.Y)
+				if gui and gui.IgnoreGuiInset then
+					local topLeftInset = GuiService:GetGuiInset()
+					position += topLeftInset
+				end
+				return position
+			end
 			local function updateSquare(input)
-				local position = input.Position
+				local position = getPointerPosition(input)
 				saturation = math.clamp((position.X - square.AbsolutePosition.X) / square.AbsoluteSize.X, 0, 1)
 				brightness = 1 - math.clamp((position.Y - square.AbsolutePosition.Y) / square.AbsoluteSize.Y, 0, 1)
 				applyHSV()
 			end
 			local function updateHue(input)
-				local position = input.Position
+				local position = getPointerPosition(input)
 				hue = math.clamp((position.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y, 0, 1)
 				square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
 				applyHSV()
