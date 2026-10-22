@@ -113,7 +113,7 @@ menu:Notify("The module ran.", 3, "success")
 
 When no `parent` is supplied, `BacktrackUI.new` uses the executor's `gethui`/`get_hidden_gui` container when available, then falls back to the local player's `PlayerGui`. Pass `parent` to host the GUI elsewhere. `toggleKey` accepts a Roblox `Enum.KeyCode`.
 
-The [example client](example.client.lua) loads the public library directly from GitHub with `loadstring` and demonstrates the source UI arrangement. Its callbacks are inert examples.
+The [example client](example.client.lua) loads the public library directly from GitHub with `loadstring` and demonstrates the source UI arrangement. Its callbacks are inert examples. It also adds a **Module Test** in the Lua Modules manager so you can try a custom module window, dock item, settings controls, actions, and enable/disable callbacks.
 
 ## Components
 
@@ -140,7 +140,7 @@ return {
     },
 
     Build = function(panel, module, menu, manager)
-        local actions = panel:AddColumn():AddSection("Actions")
+        local actions = panel:AddSection("Actions")
         actions:Button({ name = "Say hello", callback = function()
             menu:Notify("Hello from my module", 3, "success")
         end })

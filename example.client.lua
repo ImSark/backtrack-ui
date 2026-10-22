@@ -757,3 +757,48 @@ dock:AddPanel(configPanel)
 dock:AddPanel(playerlistPanel)
 dock:AddPanel(outputPanel)
 dock:AddPanel(luaModuleManager.Panel, { name = "Lua Modules", icon = "lua" })
+
+luaModuleManager:AddModule("Module Test", "", {
+	Window = {
+		title = "Module Test",
+		iconText = "T",
+		position = UDim2.new(0.5, -170, 0.5, -180),
+		size = UDim2.fromOffset(340, 360),
+		dock = { order = 7, tooltip = "Test custom module UI" },
+	},
+	Build = function(panel, module, menu)
+		local section = panel:AddSection("Module preview")
+		local status = section:Label({ text = "Status: disabled" })
+		local lastChange = section:Label({ text = "Change a setting to test callbacks." })
+		module.Runtime = { Status = status, LastChange = lastChange }
+		section:Button({ name = "Run test action", callback = function()
+			menu:Notify("Custom module action fired.", 3, "success")
+		end })
+	end,
+	Settings = {
+		Preview = { type = "toggle", default = true },
+		Strength = { type = "slider", min = 0, max = 100, step = 5, default = 40, suffix = "%" },
+		Mode = { type = "dropdown", items = { "Quiet", "Balanced", "Loud" }, default = "Balanced" },
+		Tint = { type = "colorpicker", default = Color3.fromRGB(255, 98, 127), alpha = 1 },
+		Hotkey = { type = "keybind", key = Enum.KeyCode.P, mode = "Toggle" },
+		Caption = { type = "textbox", default = "Hello from a module" },
+		Reset = { type = "button", text = "Reset settings", callback = function(module)
+			module:Set("Preview", true)
+			module:Set("Strength", 40)
+			module:Set("Mode", "Balanced")
+			module:Set("Tint", { color = Color3.fromRGB(255, 98, 127), alpha = 1 })
+			module:Set("Caption", "Hello from a module")
+		end },
+	},
+	OnEnable = function(module, menu)
+		if module.Runtime then module.Runtime.Status:Set("Status: enabled") end
+		menu:Notify("Module Test enabled.", 3, "success")
+	end,
+	OnSettingChanged = function(name, value, module)
+		if module.Runtime then module.Runtime.LastChange:Set("Changed setting: " .. tostring(name)) end
+	end,
+	OnDisable = function(module, menu)
+		if module.Runtime then module.Runtime.Status:Set("Status: disabled") end
+		menu:Notify("Module Test disabled.", 3, "information")
+	end,
+})
