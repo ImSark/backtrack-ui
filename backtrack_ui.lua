@@ -934,7 +934,10 @@ function BacktrackUI:SetTheme(overrides)
 		if panel.Gui and panel.Gui.Parent then table.insert(themeGuis, panel.Gui) end
 	end
 	for _, gui in ipairs(themeGuis) do GuiThemes[gui] = self.Theme end
-	if not self._destroyed then applyThemeChanges(self) end
+	if not self._destroyed then
+		applyThemeChanges(self)
+		if self.Dock and type(self.Dock.RefreshTheme) == "function" then self.Dock:RefreshTheme() end
+	end
 	return self.Theme
 end
 
@@ -2554,6 +2557,7 @@ function BacktrackUI:CreateDock(options)
 		local handle = {
 			_dock = self,
 			_config = config,
+			_theme = itemTheme,
 			Name = itemName,
 			Button = item,
 			Outline = outline,
@@ -2823,6 +2827,15 @@ function BacktrackUI:CreateDock(options)
 	function dock:Refresh()
 		for _, item in ipairs(self._items) do item:Refresh() end
 		updateSize()
+	end
+	function dock:RefreshTheme()
+		local latestDockTheme = mergeTheme(self.Options.theme, self._window.Theme)
+		for key, value in pairs(latestDockTheme) do self.Theme[key] = value end
+		for _, item in ipairs(self._items) do
+			local latestItemTheme = mergeTheme(item._config.theme, self.Theme)
+			for key, value in pairs(latestItemTheme) do item._theme[key] = value end
+			item:Refresh()
+		end
 	end
 	function dock:SetSpacing(value)
 		spacing = math.max(0, tonumber(value) or spacing)
