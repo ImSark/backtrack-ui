@@ -411,7 +411,6 @@ function LiquidGlassUI:SetTheme(overrides)
 		local ok, err = pcall(updater)
 		if not ok then warn("[LiquidGlassUI] theme update error: " .. tostring(err)) end
 	end
-	for _, tab in ipairs(self.Tabs) do tab:RefreshTheme() end
 	return self.Theme
 end
 
@@ -505,7 +504,6 @@ function LiquidGlassUI:AddTab(name, iconText)
 		page.BackgroundColor3 = self.Theme.background
 		page.ScrollBarImageColor3 = self.Theme.accent
 		pageOutline.Color = self.Theme.border
-		for _, section in ipairs(tab.Sections) do section:RefreshTheme() end
 	end
 	tab.Button = button
 	tab.IconLabel = icon
