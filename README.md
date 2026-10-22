@@ -2,7 +2,7 @@
 
 A standalone Luau UI library based on the menu in the [provided script](https://raw.githubusercontent.com/GLAMOHGA/Project-Delta/refs/heads/main/backtrack.tech.txt). The example recreates the four main tabs (`Combat`, `Players`, `Misc`, and `Visuals`) plus the separate `Style`, `Configurations`, `Playerlist`, and `Output` windows. It follows the source window sizes and screen-relative positions, square 25×25 dock icons, rose accent, dark blue-grey gradients, pixel icons, Tahoma font, and watermark treatment. Dock icons tint rose while their own window is open and inline-grey while it is closed.
 
-The library only builds interface elements and invokes callbacks supplied by the host script. It does not include the source script's game behavior. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It loads the PNG UI images and original Tahoma font through executor asset APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
+The library builds interface elements and invokes callbacks supplied by the host script; it does not include the source script's game behavior. Its optional Lua Modules dock panel runs user-entered module source only when the user clicks **Run**. The executor example uses `loadstring(game:HttpGet(...))`; its runtime cache-buster requests fresh example and library code each run. It loads the PNG UI images and original Tahoma font through executor asset APIs. A custom `FontFace` can also be supplied as `theme.fontFace`.
 
 ## Executor loader
 
@@ -69,6 +69,16 @@ display:Button({
 })
 ```
 
+The dock includes a Lua Modules panel by default. Modules can be added in its editor or registered from the host script:
+
+```lua
+menu:CreateDock()
+menu.LuaModules:AddModule("Notice", [[
+local menu = ...
+menu:Notify("The module ran.", 3, "success")
+]])
+```
+
 When no `parent` is supplied, `BacktrackUI.new` uses the executor's `gethui`/`get_hidden_gui` container when available, then falls back to the local player's `PlayerGui`. Pass `parent` to host the GUI elsewhere. `toggleKey` accepts a Roblox `Enum.KeyCode`.
 
 The [example client](example.client.lua) loads the public library directly from GitHub with `loadstring` and demonstrates the source UI arrangement. Its callbacks are inert examples.
@@ -83,6 +93,7 @@ The [example client](example.client.lua) loads the public library directly from 
 - SVG icons are included in [`assets/icons`](assets/icons/). Original PNG icons and the glow image are in [`assets/roblox`](assets/roblox); the executor example downloads these through executor asset APIs.
 - `control:Get()`, `control:Set(value)`, `control:SetVisible(bool)`, plus window-level `GetValues()` and `SetValues(values)` for application-owned configuration persistence.
 - `menu:CreateWatermark(text)` returns a draggable watermark handle with `SetText`, `SetVisible`, `SetPosition`, `GetPosition`, and `Destroy`. It respects the Roblox topbar inset by default; pass `position`, `displayOrder`, or `ignoreGuiInset` in its options to customize placement.
+- `menu:CreateDock()` adds a `Lua Modules` dock button by default. The module panel lets users name, add, run, and remove Lua source for the current UI session. Use `menu:CreateDock({ luaModules = false })` to omit it. The manager is also available as `menu.LuaModules` or from `menu:CreateLuaModuleManager()`; `AddModule(name, source)`, `RunModule(name)`, `RemoveModule(name)`, and `GetModules()` are available. A module receives `menu` and the manager as its first two chunk arguments (`local menu, moduleManager = ...`). Source runs only when the user clicks **Run** and requires executor `loadstring` support.
 - `menu:SetTheme({ accent = Color3.fromRGB(...) })` updates the current GUI palette.
 
 Controls accept a `flag` and `callback`. Flags default to a generated name when omitted. A color picker returns `{ color = Color3, alpha = number }` from `Get()` and calls its callback with `(color, alpha)`. A keybind returns `{ key = EnumItem, mode = string, active = boolean }`.

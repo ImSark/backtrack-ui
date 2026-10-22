@@ -364,6 +364,7 @@ function BacktrackUI.new(options)
 		_values = {},
 		_tabs = {},
 		_panels = {},
+		_luaModules = {},
 		_watermarks = {},
 		_keybinds = {},
 		_connectionsByName = {},
@@ -1321,6 +1322,7 @@ function BacktrackUI:CreatePanel(title, options)
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	}, contentFrame)
+	panel.Content = content
 	create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, content)
 	local start, inputStart
 	connect(self, bar.InputBegan, function(input)
@@ -1420,6 +1422,230 @@ function BacktrackUI:CreatePanel(title, options)
 	table.insert(self._panels, panel)
 	if self.Dock then self.Dock:Refresh() end
 	return panel
+end
+
+function BacktrackUI:CreateLuaModuleManager(options)
+	options = options or {}
+	local existing = self._luaModuleManager
+	if existing and existing.Panel and existing.Panel.Gui and existing.Panel.Gui.Parent then
+		return existing
+	end
+
+	local panel = self:CreatePanel(options.title or "Lua Modules", {
+		name = options.name or "LuaModules",
+		image = options.image or "lua",
+		position = options.position or UDim2.fromOffset(40, 110),
+		size = options.size or UDim2.fromOffset(390, 420),
+		visible = options.visible == true,
+	})
+	local manager = { _window = self, Panel = panel, Modules = self._luaModules }
+	self._luaModuleManager = manager
+	self.LuaModules = manager
+
+	local content = panel.Content
+	local form = create("Frame", {
+		Name = "ModuleForm",
+		Size = UDim2.new(1, -8, 0, 238),
+		BackgroundTransparency = 1,
+		LayoutOrder = 1,
+	}, content)
+	label(form, "Add a Lua module", self.Theme, { size = UDim2.new(1, -8, 0, 17), position = UDim2.fromOffset(4, 0), color = self.Theme.accent })
+	label(form, "Module name", self.Theme, { size = UDim2.new(1, -8, 0, 14), position = UDim2.fromOffset(4, 19), color = self.Theme.muted, textSize = 11 })
+	local nameInput = create("TextBox", {
+		Name = "ModuleName",
+		Position = UDim2.fromOffset(4, 34),
+		Size = UDim2.new(1, -8, 0, 22),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+		ClearTextOnFocus = false,
+		Font = Enum.Font.Legacy,
+		PlaceholderText = "Example Module",
+		PlaceholderColor3 = self.Theme.muted,
+		Text = "",
+		TextColor3 = self.Theme.text,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, form)
+	stroke(nameInput, self.Theme.inline, 1)
+	create("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5) }, nameInput)
+	label(form, "Lua source", self.Theme, { size = UDim2.new(1, -8, 0, 14), position = UDim2.fromOffset(4, 59), color = self.Theme.muted, textSize = 11 })
+	local sourceInput = create("TextBox", {
+		Name = "ModuleSource",
+		Position = UDim2.fromOffset(4, 75),
+		Size = UDim2.new(1, -8, 0, 108),
+		BackgroundColor3 = self.Theme.outline,
+		BorderSizePixel = 0,
+		ClearTextOnFocus = false,
+		Font = Enum.Font.Code,
+		MultiLine = true,
+		PlaceholderText = "local menu, moduleManager = ...\n-- Add your module code here",
+		PlaceholderColor3 = self.Theme.muted,
+		Text = "",
+		TextColor3 = self.Theme.text,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = false,
+	}, form)
+	stroke(sourceInput, self.Theme.inline, 1)
+	create("UIPadding", {
+		PaddingLeft = UDim.new(0, 5),
+		PaddingRight = UDim.new(0, 5),
+		PaddingTop = UDim.new(0, 4),
+	}, sourceInput)
+	local status = label(form, "Modules are kept for this UI session.", self.Theme, {
+		size = UDim2.new(1, -104, 0, 18),
+		position = UDim2.fromOffset(4, 213),
+		color = self.Theme.muted,
+		textSize = 10,
+		truncate = true,
+	})
+	local function setStatus(message, color)
+		status.Text = tostring(message or "")
+		status.TextColor3 = color or self.Theme.muted
+	end
+	local addButton = button(form, "Add Module", self.Theme, {
+		position = UDim2.new(1, -94, 0, 210),
+		size = UDim2.fromOffset(90, 24),
+		textSize = 10,
+		background = self.Theme.inline,
+		border = self.Theme.accent,
+	})
+
+	local listFrame = create("Frame", {
+		Name = "ModuleList",
+		Size = UDim2.new(1, -8, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+	}, content)
+	create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, listFrame)
+	label(listFrame, "Your modules", self.Theme, { size = UDim2.new(1, -4, 0, 17), position = UDim2.fromOffset(2, 0), color = self.Theme.accent })
+	local rows = create("Frame", {
+		Name = "ModuleRows",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 2,
+	}, listFrame)
+	create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, rows)
+
+	local function findModule(name)
+		for _, module in ipairs(manager.Modules) do
+			if module.Name == name then return module end
+		end
+		return nil
+	end
+	function manager:Refresh()
+		for _, child in ipairs(rows:GetChildren()) do
+			if child:IsA("GuiObject") then child:Destroy() end
+		end
+		if #self.Modules == 0 then
+			label(rows, "No modules added yet.", self._window.Theme, { size = UDim2.new(1, -4, 0, 22), position = UDim2.fromOffset(2, 0), color = self._window.Theme.muted, textSize = 11 })
+			return
+		end
+		for _, module in ipairs(self.Modules) do
+			local row = create("Frame", {
+				Name = "ModuleRow",
+				Size = UDim2.new(1, 0, 0, 28),
+				BackgroundColor3 = self._window.Theme.inline,
+				BorderSizePixel = 0,
+			}, rows)
+			label(row, module.Name, self._window.Theme, {
+				size = UDim2.new(1, -92, 1, 0),
+				position = UDim2.fromOffset(5, 0),
+				textSize = 11,
+				truncate = true,
+			})
+			local runButton = button(row, "Run", self._window.Theme, {
+				position = UDim2.new(1, -82, 0, 2),
+				size = UDim2.fromOffset(38, 24),
+				textSize = 10,
+				background = self._window.Theme.outline,
+				border = self._window.Theme.border,
+			})
+			runButton.Activated:Connect(function()
+				local ok, result = self:RunModule(module.Name)
+				if ok then
+					setStatus("Ran " .. module.Name, self._window.Theme.positive)
+				else
+					setStatus(tostring(result), self._window.Theme.negative)
+				end
+			end)
+			local removeButton = button(row, "Del", self._window.Theme, {
+				position = UDim2.new(1, -41, 0, 2),
+				size = UDim2.fromOffset(38, 24),
+				textSize = 10,
+				background = self._window.Theme.outline,
+				border = self._window.Theme.border,
+				color = self._window.Theme.negative,
+			})
+			removeButton.Activated:Connect(function()
+				self:RemoveModule(module.Name)
+				setStatus("Removed " .. module.Name)
+			end)
+		end
+	end
+	function manager:AddModule(name, source)
+		name = tostring(name or ""):gsub("^%s*(.-)%s*$", "%1")
+		source = tostring(source or "")
+		if name == "" then return false, "Enter a module name." end
+		if source:gsub("%s", "") == "" then return false, "Enter Lua source first." end
+		local existingModule = findModule(name)
+		if existingModule then
+			existingModule.Source = source
+		else
+			table.insert(self.Modules, { Name = name, Source = source })
+		end
+		self:Refresh()
+		return true, existingModule and "Updated " .. name or "Added " .. name
+	end
+	function manager:RemoveModule(name)
+		for index, module in ipairs(self.Modules) do
+			if module.Name == name then
+				table.remove(self.Modules, index)
+				self:Refresh()
+				return true
+			end
+		end
+		return false
+	end
+	function manager:GetModules()
+		local result = {}
+		for _, module in ipairs(self.Modules) do
+			table.insert(result, { Name = module.Name, Source = module.Source })
+		end
+		return result
+	end
+	function manager:RunModule(name)
+		local module = findModule(name)
+		if not module then return false, "Module not found: " .. tostring(name) end
+		local compiler = loadstring
+		if type(compiler) ~= "function" then return false, "loadstring is unavailable in this executor." end
+		local compileOk, chunk, compileError = pcall(compiler, module.Source)
+		if not compileOk then return false, tostring(chunk) end
+		if type(chunk) ~= "function" then return false, tostring(compileError or "Module compilation failed.") end
+		local runOk, result = pcall(chunk, self._window, self)
+		if not runOk then return false, tostring(result) end
+		return true, result
+	end
+	function manager:Destroy()
+		if self.Panel then self.Panel:Destroy() end
+		if self._window._luaModuleManager == self then self._window._luaModuleManager = nil end
+		if self._window.LuaModules == self then self._window.LuaModules = nil end
+	end
+	addButton.Activated:Connect(function()
+		local ok, message = manager:AddModule(nameInput.Text, sourceInput.Text)
+		if ok then
+			nameInput.Text, sourceInput.Text = "", ""
+			setStatus(message, self.Theme.positive)
+		else
+			setStatus(message, self.Theme.negative)
+		end
+	end)
+	manager:Refresh()
+	if self.Dock then self.Dock:Refresh() end
+	return manager
 end
 
 function BacktrackUI:CreateWatermark(text, options)
@@ -1537,6 +1763,15 @@ end
 function BacktrackUI:CreateDock(options)
 	options = options or {}
 	if self.Dock and self.Dock.Frame.Parent then self.Dock:Destroy() end
+	self.Dock = nil
+	if options.luaModules == false then
+		if self._luaModuleManager then self._luaModuleManager:Destroy() end
+	else
+		local manager = self._luaModuleManager
+		if not manager or not manager.Panel or not manager.Panel.Gui or not manager.Panel.Gui.Parent then
+			self:CreateLuaModuleManager(type(options.luaModules) == "table" and options.luaModules or {})
+		end
+	end
 	local dock = { _window = self, _buttons = {}, _buttonConnections = {}, _buttonTooltipCloses = {} }
 	local frame = create("Frame", {
 		Name = "BacktrackDock",
@@ -1665,6 +1900,17 @@ function BacktrackUI:CreateDock(options)
 				PaddingLeft = UDim.new(0, 3),
 				PaddingRight = UDim.new(0, 3),
 			}, iconFace)
+		elseif icon == "lua" then
+			iconLabel = create("TextLabel", {
+				Name = "Icon",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.Code,
+				Text = "</>",
+				TextSize = 10,
+				TextColor3 = self._window.Theme.inline,
+				ZIndex = 18,
+			}, iconFace)
 		end
 		local function refreshIcon()
 			local open = false
@@ -1672,7 +1918,11 @@ function BacktrackUI:CreateDock(options)
 				local ok, value = pcall(isOpen)
 				open = ok and value == true
 			end
-			if iconLabel then iconLabel.ImageColor3 = open and self._window.Theme.accent or self._window.Theme.inline end
+			if iconLabel then
+				local color = open and self._window.Theme.accent or self._window.Theme.inline
+				if iconLabel:IsA("ImageLabel") then iconLabel.ImageColor3 = color
+				else iconLabel.TextColor3 = color end
+			end
 		end
 		refreshIcon()
 		for _, signal in ipairs(stateSignals or {}) do
