@@ -7,7 +7,7 @@
 local LiquidGlassUI = {}
 LiquidGlassUI.__index = LiquidGlassUI
 
-LiquidGlassUI.Version = "1.1.0"
+LiquidGlassUI.Version = "1.2.0"
 LiquidGlassUI.Theme = {
 	background = Color3.fromRGB(242, 246, 251),
 	glass = Color3.fromRGB(224, 233, 245),
@@ -118,6 +118,15 @@ local function connect(window, signal, callback)
 	return connection
 end
 
+local function refract(window, gui, layer, control)
+	if window.Options.refraction == false or (control and window.Options.refractionControls == false) then return end
+	window._refractionTargetSerial = (window._refractionTargetSerial or 0) + 1
+	local target = { Gui = gui, Options = { layer = layer or 0 }, Order = window._refractionTargetSerial }
+	window._refractionTargets[gui] = target
+	target.Connection = gui.Destroying:Connect(function() window._refractionTargets[gui] = nil end)
+	if window._renderer then window._renderer:Attach(gui, target.Options) end
+end
+
 local function guiPointer(window)
 	-- The ScreenGui uses IgnoreGuiInset=true, so mouse coordinates already
 	-- share the same origin as the GUI objects.
@@ -161,6 +170,9 @@ function LiquidGlassUI.new(options)
 				if effect:IsA("BlurEffect") and effect.Name == guiName .. "_BackdropBlur" then effect:Destroy() end
 			end
 		end
+		for _, existing in ipairs(Workspace:GetChildren()) do
+			if existing:IsA("Folder") and existing.Name == guiName .. "_Refraction" then existing:Destroy() end
+		end
 	end
 
 	local window = setmetatable({
@@ -175,6 +187,8 @@ function LiquidGlassUI.new(options)
 		_minimized = false,
 		_popup = nil,
 		_listeningKeybind = nil,
+		_refractionTargets = {},
+		RefractionStatus = options.refraction == false and "disabled" or "loading",
 	}, LiquidGlassUI)
 
 	local screen = create("ScreenGui", {
@@ -187,7 +201,8 @@ function LiquidGlassUI.new(options)
 	window.Gui = screen
 	connect(window, screen.Destroying, function() window:Destroy(true) end)
 	local requestedBlur = options.blur
-	window._blurSize = requestedBlur == false and 0 or math.clamp(tonumber(requestedBlur) or 8, 0, 56)
+	local defaultBlur = options.refraction == false and 8 or 0
+	window._blurSize = requestedBlur == false and 0 or math.clamp(tonumber(requestedBlur) or defaultBlur, 0, 56)
 	if window._blurSize > 0 then
 		local blur = Instance.new("BlurEffect")
 		blur.Name = guiName .. "_BackdropBlur"
@@ -479,8 +494,79 @@ label(brand, options.brandMark or "L", { size = UDim2.fromScale(1, 1), font = En
 	window.ToggleKey = normalizeKey(options.toggleKey or Enum.KeyCode.RightShift)
 	window._bodySize = body.Size
 	window._savedSize = shell.Size
+	refract(window, shell, 0)
+	refract(window, nav, 1)
+	if options.refraction ~= false then
+		local fallbackTransparency = window.Theme.glassTransparency
+		local customTransparency = options.theme and options.theme.glassTransparency ~= nil
+		task.spawn(function()
+			local renderer
+			local clearApplied = false
+			local function failed(message)
+				if window._destroyed then return end
+				window.RefractionStatus = "unavailable"
+				window.RefractionError = tostring(message)
+				if renderer then renderer:Destroy() end
+				window._renderer = nil
+				if clearApplied then window:SetTheme({ glassTransparency = fallbackTransparency }) end
+				warn("[LiquidGlassUI] Refraction unavailable: " .. tostring(message))
+				invoke(options.onRefractionError, tostring(message), window)
+			end
+			local ok, err = pcall(function()
+				local factory = options.refractionRenderer
+				if not factory then
+					local base = options.refractionBaseUrl or "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/"
+					if base:sub(-1) ~= "/" then base = base .. "/" end
+					local source = game:HttpGet(base .. "liquid_glass_renderer.lua?t=" .. tostring(math.floor(os.clock() * 1000000)))
+					local chunk, compileError = loadstring(source, "LiquidGlassRenderer")
+					assert(chunk, compileError)
+					factory = chunk()
+				end
+				if window._destroyed then return end
+				local rendererOptions = {}
+				for key, value in pairs(options.refractionOptions or {}) do rendererOptions[key] = value end
+				if options.refractionBaseUrl and not rendererOptions.assetBaseUrl then
+					local base = options.refractionBaseUrl
+					if base:sub(-1) ~= "/" then base = base .. "/" end
+					rendererOptions.assetBaseUrl = base .. "assets/liquid-glass/"
+				end
+				rendererOptions.name = guiName
+				rendererOptions.onError = failed
+				if window._refractionStrength then rendererOptions.strength = window._refractionStrength end
+				renderer = factory.new(rendererOptions)
+				if window._destroyed then renderer:Destroy(); return end
+				window._renderer = renderer
+				local targets = {}
+				for _, target in pairs(window._refractionTargets) do table.insert(targets, target) end
+				table.sort(targets, function(a, b)
+					if a.Options.layer == b.Options.layer then return a.Order < b.Order end
+					return a.Options.layer < b.Options.layer
+				end)
+				for _, target in ipairs(targets) do renderer:Attach(target.Gui, target.Options) end
+				renderer:SetEnabled(window._visible)
+				window.RefractionStatus = "ready"
+				window.RefractionError = nil
+				if not customTransparency and window.Theme.glassTransparency == fallbackTransparency then
+					clearApplied = true
+					window:SetTheme({ glassTransparency = 0.84 })
+				end
+				invoke(options.onRefractionReady, renderer, window)
+			end)
+			if not ok then failed(err) end
+		end)
+	end
 
 	return window
+end
+
+function LiquidGlassUI:GetRefractionStatus()
+	return self.RefractionStatus, self.RefractionError
+end
+
+function LiquidGlassUI:SetRefractionStrength(value)
+	self._refractionStrength = math.clamp(tonumber(value) or 3, 1.01, 8)
+	if self._renderer then self._renderer:SetStrength(self._refractionStrength) end
+	return self._refractionStrength
 end
 
 function LiquidGlassUI:SetTitle(title, subtitle)
@@ -502,6 +588,7 @@ end
 function LiquidGlassUI:SetVisible(visible)
 	self._visible = visible ~= false
 	self.Gui.Enabled = self._visible
+	if self._renderer then self._renderer:SetEnabled(self._visible) end
 	if self._blurEffect then
 		if self._blurTween then self._blurTween:Cancel() end
 		self._blurEffect.Enabled = true
@@ -774,6 +861,7 @@ function Section:Button(value)
 	corner(button, 21)
 	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
 	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.45, 0.88))
+	refract(self._window, button, 2, true)
 	local handle = makeHandle(self, name, row)
 	handle.Button = button
 	function handle:RefreshTheme()
@@ -806,6 +894,7 @@ function Section:Toggle(value)
 	corner(track, 12)
 	local trackOutline = outline(track, self._window.Theme.border, 0.62, 1)
 	local trackGradient = gradient(track, self._window.Theme.control, self._window.Theme.glassTop, 90, NumberSequence.new(0.48, 0.86))
+	refract(self._window, track, 2, true)
 	local knob = create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 3, 0.5, 0), Size = UDim2.fromOffset(17, 17),
 		BackgroundColor3 = self._window.Theme.glassTop, BorderSizePixel = 0, ZIndex = 8,
@@ -865,6 +954,7 @@ function Section:Slider(value)
 		BackgroundColor3 = self._window.Theme.glassTop, BorderSizePixel = 0, ZIndex = 8,
 	}, track)
 	corner(knob, 7)
+	refract(self._window, knob, 2, true)
 	local knobOutline = outline(knob, self._window.Theme.border, 0.4, 1)
 	local handle = makeHandle(self, name, row)
 	handle.Min, handle.Max = minimum, maximum
@@ -938,6 +1028,7 @@ function Section:Dropdown(value)
 	corner(choice, 15)
 	local choiceOutline = outline(choice, self._window.Theme.border, 0.58, 1)
 	local choiceGradient = gradient(choice, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
+	refract(self._window, choice, 2, true)
 	local handle = makeHandle(self, name, row)
 	handle.Items = items
 	handle.Value = options.default or items[1]
@@ -1019,6 +1110,7 @@ function Section:Textbox(value)
 	corner(box, 15)
 	local boxOutline = outline(box, self._window.Theme.border, 0.58, 1)
 	local boxGradient = gradient(box, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.5, 0.9))
+	refract(self._window, box, 2, true)
 	create("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 8) }, box)
 	local handle = makeHandle(self, name, row)
 	handle.Input = box
@@ -1063,6 +1155,7 @@ function Section:Keybind(value)
 	corner(button, 14)
 	local buttonOutline = outline(button, self._window.Theme.border, 0.58, 1)
 	local buttonGradient = gradient(button, self._window.Theme.glassTop, self._window.Theme.glassBottom, 95, NumberSequence.new(0.48, 0.9))
+	refract(self._window, button, 2, true)
 	local handle = makeHandle(self, name, row)
 	handle.Value = normalizeKey(options.default or options.key or Enum.KeyCode.Unknown)
 	handle.Callback = options.callback
@@ -1169,6 +1262,7 @@ function Section:Colorpicker(value)
 		corner(popup, 15)
 		local popupOutline = outline(popup, self._window.Theme.border, 0.3, 1.2)
 		local popupGradient = gradient(popup, self._window.Theme.glassTop, self._window.Theme.glassBottom, 105, NumberSequence.new(0.22, 0.56))
+		refract(self._window, popup, 3)
 		local pos = swatch.AbsolutePosition
 		local view = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1024, 768)
 		local x = math.clamp(pos.X - 178, 8, math.max(8, view.X - 234))
@@ -1308,6 +1402,7 @@ function LiquidGlassUI:Notify(message, duration, kind)
 	outline(toast, theme.border, 0.32, 1.2)
 	local toastGradient = gradient(toast, theme.glassTop, theme.glassBottom, 100, NumberSequence.new(0.24, 0.56))
 	toastGradient.Color = materialColors(theme)
+	refract(self, toast, 3)
 	local tint = kind == "success" and theme.positive or (kind == "error" and theme.negative or theme.accent)
 	local accentBar = create("Frame", { Position = UDim2.fromOffset(10, 11), Size = UDim2.fromOffset(3, 36), BackgroundColor3 = tint, BorderSizePixel = 0, ZIndex = 102 }, toast)
 	corner(accentBar, 2)
@@ -1327,6 +1422,9 @@ end
 function LiquidGlassUI:Destroy(fromGui)
 	if self._destroyed then return end
 	self._destroyed = true
+	if self._renderer then self._renderer:Destroy(); self._renderer = nil end
+	for _, target in pairs(self._refractionTargets) do if target.Connection then target.Connection:Disconnect() end end
+	table.clear(self._refractionTargets)
 	if self._blurTween then self._blurTween:Cancel() end
 	if self._blurEffect then self._blurEffect:Destroy(); self._blurEffect = nil end
 	if self._popup then

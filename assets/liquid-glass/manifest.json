@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "description": "Original procedurally generated rounded lens patches. No third-party geometry.",
+  "meshes": {
+    "center": {
+      "file": "center.mesh",
+      "vertices": 8,
+      "triangles": 4,
+      "bytes": 393,
+      "sha256": "54fb4750c09d20ecacfb91a0452c8eecc08153feff1a1fe0ab263a8e4227808d"
+    },
+    "edge": {
+      "file": "edge.mesh",
+      "vertices": 30,
+      "triangles": 26,
+      "bytes": 1537,
+      "sha256": "59ad51a4e19f2284b756b7af9f9c0e8fc409097fcd6890e0bed8c13dedaece2b"
+    },
+    "corner": {
+      "file": "corner.mesh",
+      "vertices": 171,
+      "triangles": 288,
+      "bytes": 10321,
+      "sha256": "d9ca1993f284fa7ffd7c901f445c819add207de2f3cca4af68df6640aae1583f"
+    }
+  }
+}

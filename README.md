@@ -16,7 +16,7 @@ loadstring(game:HttpGet(url .. "?t=" .. cacheBuster))()
 
 ## Separate Liquid Glass library
 
-`liquid_glass_ui.lua` is an independent library with clear Apple-style glass, floating pill navigation, and rim reflections that respond to the pointer. The example replaces its previous window on reload. It uses `blur = 8`; set `blur = 0` to disable camera blur or call `ui:SetBlur(amount)` at runtime. Load its example with:
+`liquid_glass_ui.lua` is an independent library with floating pill navigation and camera-aligned curved MeshPart lenses that refract the 3D world. It loads `liquid_glass_renderer.lua` and the original lens geometry in `assets/liquid-glass/`. The example replaces its previous window on reload and leaves global blur off. Load it with:
 
 ```lua
 local url = "https://raw.githubusercontent.com/ImSark/backtrack-ui/main/liquid_glass_example.client.lua"
@@ -39,9 +39,13 @@ section:Slider({ name = "Amount", min = 0, max = 100, default = 40 })
 section:Button({ name = "Notify", callback = function() ui:Notify("Hello", 3, "success") end })
 ```
 
-It includes labels, buttons, toggles, sliders, dropdowns, textboxes, color pickers, and keybinds. `SetTheme`, `SetBlur`, `SetVisible`, `Toggle`, `SetMinimized`, and `Destroy` control the window after creation. See [liquid_glass_example.client.lua](liquid_glass_example.client.lua) for a complete demo.
+It includes labels, buttons, toggles, sliders, dropdowns, textboxes, color pickers, and keybinds. `SetTheme`, `SetBlur`, `SetRefractionStrength`, `GetRefractionStatus`, `SetVisible`, `Toggle`, `SetMinimized`, and `Destroy` control the window after creation. See [liquid_glass_example.client.lua](liquid_glass_example.client.lua) for a complete demo.
 
-Use `theme.glassTransparency` (default `0.34`) and `theme.controlTransparency` (default `0.58`) to adjust the material. The colors `glassTop`, `glass`, and `glassBottom` tint its surface; `text` and `muted` control the ink. `replaceExisting = true` destroys a previous interface with the same `name`, disconnects its handlers, and removes its camera blur. Leave it off to create separate named windows. Camera blur affects the 3D world view; edge reflections are simulated with UI layers.
+Use `theme.glassTransparency` and `theme.controlTransparency` to adjust the material. The window starts at `0.34` transparency and changes to `0.84` when refraction is ready unless an explicit theme transparency was supplied. The colors `glassTop`, `glass`, and `glassBottom` tint its surface; `text` and `muted` control the ink. `replaceExisting = true` destroys a previous interface with the same `name`, disconnects its handlers, and removes its lenses and camera blur. Leave it off to create separate named windows.
+
+Refraction requires executor file/custom-asset support and MeshPart import support. Graphics quality must support Roblox Glass refraction; it cannot refract other UI and does not render on mobile. A loading error sets `RefractionStatus = "unavailable"`, records `RefractionError`, and calls `onRefractionError(message, window)`; the example reports this fallback rather than silently claiming the effect loaded. `onRefractionReady(renderer, window)` runs when mesh setup completes. These states describe setup, not a guarantee that the player's graphics settings display refraction.
+
+Set `refraction = false` for the translucent UI without meshes, or `refractionControls = false` to reserve lenses for the window, navigation, and popups. `refractionOptions` accepts `strength` (default `3`), `thickness` in pixels (default `7`), `depth` (default `2` studs), `maxSurfaces` (default `32`), `assetBaseUrl`, and optional `templates` or `meshes`. Code and mesh files are fetched fresh on each run. The example's Appearance tab has transparency, blur, and refraction strength sliders. See [lens geometry notes](assets/liquid-glass/README.md) for the mesh build and rendering limits.
 
 ## Library API
 
