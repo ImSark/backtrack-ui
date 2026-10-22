@@ -2865,13 +2865,13 @@ function Section:_colorpicker(options, right, owner)
 				hex.Text = "#" .. color:ToHex()
 			end
 			local function updateSquare(input)
-				local position = UserInputService:GetMouseLocation()
+				local position = input.Position
 				saturation = math.clamp((position.X - square.AbsolutePosition.X) / square.AbsoluteSize.X, 0, 1)
 				brightness = 1 - math.clamp((position.Y - square.AbsolutePosition.Y) / square.AbsoluteSize.Y, 0, 1)
 				applyHSV()
 			end
-			local function updateHue()
-				local position = UserInputService:GetMouseLocation()
+			local function updateHue(input)
+				local position = input.Position
 				hue = math.clamp((position.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y, 0, 1)
 				square.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
 				applyHSV()
